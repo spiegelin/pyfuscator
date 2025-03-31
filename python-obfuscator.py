@@ -14,7 +14,7 @@ init(autoreset=True)
 
 # Global sets/dictionaries for import obfuscation.
 IMPORT_ALIASES = set()
-IMPORT_MAPPING = {}  # Maps original module name to new alias.
+IMPORT_MAPPING = {}  # Maps original import names (or original alias) to new random alias.
 
 # --- Helper functions ---
 
@@ -30,7 +30,10 @@ def encode_string(s):
 
 def wrap_with_exec(code_str):
     b64_code = base64.b64encode(code_str.encode('utf-8')).decode('utf-8')
-    return f"exec(__import__('base64').b64decode('{b64_code}').decode('utf-8'))"
+    # Merge globals() and locals() so that dynamically executed code can access outer variables.
+    return f"exec(__import__('base64').b64decode('{b64_code}').decode('utf-8'), {{**globals(), **locals()}})"
+
+
 
 def generate_random_statement():
     """Generate a random Python statement that does nothing."""
@@ -98,18 +101,21 @@ def fix_slice_syntax(code):
 
 class ObfuscateImports(ast.NodeTransformer):
     """
-    Replace each plain import statement with an assignment that performs a dynamic import.
-    For each "import module", generate a random alias and replace with:
-        <alias> = __import__( __import__('base64').b64decode('<encoded>').decode('utf-8') )
+    Process all import statements:
+      1. For "import module [as alias]": generate a new random alias and record the mapping for both the module name and the alias.
+      2. For "from module import name": for each imported name, generate a new alias and record it for both the original name and its alias (if provided).
+      3. For "from module import *": transform it into "import module as <alias>".
     """
     def visit_Import(self, node):
         new_nodes = []
         for alias in node.names:
-            module_name = alias.name  # e.g. "cv2"
+            module_name = alias.name  # e.g. "numpy"
             new_alias = random_name()
             IMPORT_ALIASES.add(new_alias)
+            # Record both the module name and the original alias (if provided) to new_alias.
             IMPORT_MAPPING[module_name] = new_alias
-            # Build an assignment: new_alias = __import__(decoded_module)
+            if alias.asname is not None:
+                IMPORT_MAPPING[alias.asname] = new_alias
             encoded = base64.b64encode(module_name.encode('utf-8')).decode('utf-8')
             base64_import = ast.Call(
                 func=ast.Name(id="__import__", ctx=ast.Load()),
@@ -147,18 +153,60 @@ class ObfuscateImports(ast.NodeTransformer):
         return new_nodes
 
     def visit_ImportFrom(self, node):
-        # Leave these unchanged for now.
-        return node
+        if any(alias.name == "*" for alias in node.names):
+            # Transform "from module import *" into "import module as <alias>"
+            new_alias = random_name()
+            IMPORT_ALIASES.add(new_alias)
+            IMPORT_MAPPING[node.module] = new_alias
+            encoded = base64.b64encode(node.module.encode('utf-8')).decode('utf-8')
+            base64_import = ast.Call(
+                func=ast.Name(id="__import__", ctx=ast.Load()),
+                args=[ast.Constant(value="base64")],
+                keywords=[]
+            )
+            b64decode_call = ast.Call(
+                func=ast.Attribute(value=base64_import, attr="b64decode", ctx=ast.Load()),
+                args=[ast.Constant(value=encoded)],
+                keywords=[]
+            )
+            decode_call = ast.Call(
+                func=ast.Attribute(value=b64decode_call, attr="decode", ctx=ast.Load()),
+                args=[ast.Constant(value="utf-8")],
+                keywords=[]
+            )
+            import_call = ast.Call(
+                func=ast.Name(id="__import__", ctx=ast.Load()),
+                args=[decode_call],
+                keywords=[]
+            )
+            assign_node = ast.Assign(
+                targets=[ast.Name(id=new_alias, ctx=ast.Store())],
+                value=import_call
+            )
+            return [assign_node]
+        else:
+            new_names = []
+            for alias in node.names:
+                orig_name = alias.name
+                # Use the original alias if provided; otherwise, use the original name.
+                key = alias.asname if alias.asname is not None else orig_name
+                new_alias = random_name()
+                # Record both the imported name and its alias (if any) to the new alias.
+                IMPORT_MAPPING[orig_name] = new_alias
+                IMPORT_MAPPING[key] = new_alias
+                new_names.append(ast.alias(name=orig_name, asname=new_alias))
+            node.names = new_names
+            return node
 
 class ReplaceImportNames(ast.NodeTransformer):
     """
-    Replace any occurrence of an original import name with its new alias.
-    For every Name node whose id is in IMPORT_MAPPING, replace it with the alias.
+    Replace every occurrence of an original import name with its new alias.
     """
     def visit_Name(self, node):
         if node.id in IMPORT_MAPPING:
             return ast.copy_location(ast.Name(id=IMPORT_MAPPING[node.id], ctx=node.ctx), node)
         return node
+
 
 class RenameIdentifiers(ast.NodeTransformer):
     """Rename variable, function, and class names to random strings."""
@@ -216,15 +264,27 @@ class EncryptStrings(ast.NodeTransformer):
 
 class DynamicFunctionBody(ast.NodeTransformer):
     """
-    Replace each function body with a dummy if (opaque predicate) and an exec() call
-    that decodes and runs the original function body.
+    Wrap the original function body into an inner function so that any 'return'
+    statements are properly contained. This prevents "return outside function" errors.
     """
     def visit_FunctionDef(self, node):
+        # Unparse the original function body.
         original_body = astunparse.unparse(ast.Module(body=node.body, type_ignores=[]))
-        dummy_if = ast.parse("if (42==43):\n    print('dummy')").body[0]
-        exec_call = ast.parse(wrap_with_exec(original_body), mode='exec').body
+        # Generate a random name for the inner function.
+        inner_func_name = random_name()
+        # Wrap the original body inside an inner function definition with proper indentation.
+        wrapped_code = f"def {inner_func_name}():\n" + "\n".join("    " + line for line in original_body.splitlines())
+        # Call the inner function.
+        wrapped_code += f"\n{inner_func_name}()"
+        # Create a dummy opaque if-statement (for obfuscation purposes).
+        dummy_if = ast.parse("if (42==43):\n    print('junk')").body[0]
+        # Create an exec() call that decodes and executes the wrapped code.
+        exec_call = ast.parse(wrap_with_exec(wrapped_code), mode='exec').body
+        # Replace the original function body with the dummy and the exec() call.
         node.body = [dummy_if] + exec_call
         return node
+
+
 
 class InsertJunkCode(ast.NodeTransformer):
     """

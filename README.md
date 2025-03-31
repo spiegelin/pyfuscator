@@ -19,7 +19,7 @@ The obfuscation process generates a "hard-to-read" version of your source code w
 The tool is executed via the command line and takes two arguments:
 
 ```
-python obusfactor.py <file-to-obfuscate> <result>
+python pyfuscator.py <file-to-obfuscate> <result>
 ```
 
 Where:
@@ -28,7 +28,7 @@ Where:
 
 ### Example:
 ```
-python obusfactor.py example_script.py obfuscated_script.py
+python pyfuscator.py example_script.py obfuscated_script.py
 ```
 
 ## Features & Techniques
@@ -53,7 +53,7 @@ The logical flow of the program is altered by refactoring loops and conditionals
 
 ## Installation
 
-To use `obusfactor.py`, you need Python 3.x installed on your system. You can check if Python is installed by running the following command in your terminal:
+To use `pyfuscator.py`, you need Python 3.x installed on your system. You can check if Python is installed by running the following command in your terminal:
 
 ```
 python --version
@@ -62,11 +62,9 @@ python --version
 If Python is not installed, please download and install it from [python.org](https://www.python.org/downloads/).
 
 ### Dependencies
-
-`obusfactor.py` requires the following Python libraries:
-- `base64` for string encoding and decoding
-- `random` and `string` for generating random names and strings
-- `exec` function for dynamic execution
+```zsh
+pip install -r requirements.txt
+```
 
 These libraries are included with Python by default, so no additional installations are necessary.
 
@@ -79,7 +77,7 @@ These libraries are included with Python by default, so no additional installati
    Run the tool with the following command:
 
    ```
-   python obusfactor.py your_script.py obfuscated_script.py
+   python pyfuscator.py your_script.py obfuscated_script.py
    ```
 
 3. **Obfuscated Code Output:**
@@ -105,7 +103,39 @@ print("The result is:", result)
 ### Output Code (`obfuscated_script.py`):
 
 ```python
-exec('a1b2c3="calc";d4e5f6="su";g7h8i9="m";j0k1l2="r";m3n4o5="s";p6q7r8=eval(chr(98)+chr(97)+chr(115)+chr(101)+chr(54)+chr(99)+chr(105)+chr(108)+chr(107)))')
+def xueyrVNh(ZS7ZViOE, XPL0E46l, CgtWZOwe):
+    if (42 == 43):
+        print('junk')
+    exec(__import__('base64').b64decode('ZGVmIEE1YnYxdkV6KCk6CiAgICAKICAgIHBhc3MKICAgIHBhc3MKQTVidjF2RXooKQ==').decode('utf-8'), {**globals(), **locals()})
+for dAXlTFyf in range(16):
+    rEuFKITP = (dAXlTFyf + 10)
+if ((44 % 2) == 0):
+    pass
+cwrOaraT = 90
+pass
+if ((67 % 2) == 0):
+    pass
+for ywEpfHsv in range(10):
+    IEybydA9 = (ywEpfHsv + 8)
+for NaiNbZvJ in range(20):
+    UJjD4w3E = (NaiNbZvJ + 4)
+pass
+
+def o7RHESLU(wbcVB4TI):
+    if (42 == 43):
+        print('junk')
+    exec(__import__('base64').b64decode('ZGVmIHM4OTYxTk5JKCk6CiAgICAKICAgIHBhc3MKICAgIHBhc3MKICAgIHBhc3MKICAgIHBhc3MKICAgIHBhc3MKczg5NjFOTkkoKQ==').decode('utf-8'), {**globals(), **locals()})
+fVusrDIK = 992
+pass
+Mh3F2dnk = 860
+pass
+
+def XOl2HEM3(NmEOKslC, FboMbHmm):
+    if (42 == 43):
+        print('junk')
+    exec(__import__('base64').b64decode('ZGVmIEtYNHVoamhzKCk6CiAgICAKICAgIHJldHVybiAoTm1FT0tzbEMgKyBGYm9NYkhtbSkKS1g0dWhqaHMoKQ==').decode('utf-8'), {**globals(), **locals()})
+otVN82l6 = XOl2HEM3(10, 20)
+print(__import__('base64').b64decode('VGhlIHJlc3VsdCBpczo=').decode('utf-8'), otVN82l6)
 ```
 
 This is a very simplified example. The obfuscated code in the output will look like a series of meaningless names and encoded strings, making it difficult to reverse-engineer.
@@ -114,10 +144,5 @@ This is a very simplified example. The obfuscated code in the output will look l
 
 We welcome contributions to improve the tool! If you have any ideas for new obfuscation techniques or improvements, feel free to open an issue or submit a pull request.
 
-## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-Thank you for using `obusfactor.py`—your simple solution for complex code obfuscation!
+Thank you for using `pyfuscator.py`, for any recommendations, open a pull request, I'll try tro review it shortly.

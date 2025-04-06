@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyfuscator"
+version = "0.1.0"
+description = "Advanced Python code obfuscator"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+authors = [
+    {name = "spiegelin"}
+]
+dependencies = [
+    "astunparse==1.6.3",
+    "colorama==0.4.6",
+    "typer>=0.9.0",
+    "rich>=13.6.0",
+    "pydantic>=2.5.0",
+    "six>=1.12.0",
+    "wheel>=0.23.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.1.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.5.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.4.0",
+]
+
+[project.scripts]
+pyfuscator = "pyfuscator.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pyfuscator"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py" 

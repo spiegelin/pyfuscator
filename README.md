@@ -14,83 +14,106 @@
  |_|   |__/                                  
 ```
 
+**Made by @spiegelin**
+
 **PyFuscator** is an advanced Python code obfuscation tool designed to transform your code into a form that is extremely difficult to understand and reverse engineer while preserving its original functionality.
 
-## 🔒 Features
+## Features
 
 PyFuscator provides multiple layers of obfuscation through a combination of techniques:
 
-- **🔄 Identifier Renaming** - Transforms variable, function, and class names into meaningless random strings
-- **📦 Import Obfuscation** - Disguises import statements and their references throughout the code
-- **🔡 String Encryption** - Encrypts string literals with base64 encoding and dynamic decryption
-- **📃 Junk Code Insertion** - Adds randomly generated, syntactically valid but unreachable code
-- **⚙️ Dynamic Function Execution** - Wraps function bodies with dynamic execution to hide logic
-- **⛓️ Multi-layer Encryption** - Applies multiple layers of encryption with various algorithms
-- **✂️ Comment Removal** - Strips away comments and formatting to reduce clarity
+- **Identifier Renaming** - Transforms variable, function, and class names into meaningless random strings
+- **Import Obfuscation** - Disguises import statements and their references throughout the code
+- **String Encryption** - Encrypts string literals with base64 encoding and dynamic decryption
+- **Junk Code Insertion** - Adds randomly generated, syntactically valid but unreachable code
+- **Dynamic Function Execution** - Wraps function bodies with dynamic execution to hide logic
+- **Multi-layer Encryption** - Applies multiple layers of encryption with various algorithms
+- **Comment Removal** - Strips away comments and formatting to reduce clarity
 
-## 🚀 Installation
+## Installation
 
-1. Clone the repository:
+Install from source:
+
 ```bash
-git clone https://github.com/spiegelin/PyFuscator.git
-cd PyFuscator
+git clone https://github.com/spiegelin/pyfuscator.git
+cd pyfuscator
+pip install -e .
 ```
 
-2. Install dependencies:
+### Running Without Installation
+
+If you don't want to install the package, you can use the included wrapper script:
+
 ```bash
-pip install -r requirements.txt
+# Clone the repository
+git clone https://github.com/spiegelin/pyfuscator.git
+cd pyfuscator
+
+# Run directly using the wrapper script
+python pyfuscator.py [options] input_file output_file
 ```
 
-## 📋 Usage
+## Usage
 
 Basic usage:
+
 ```bash
-python python-obfuscator.py [options] input_file output_file
+pyfuscator [options] input_file output_file
+```
+
+View all available options:
+
+```bash
+pyfuscator -h
 ```
 
 ### Command Line Options
 
 | Option | Description |
 |--------|-------------|
-| `-e NUM, --encrypt NUM` | Apply NUM layers of encryption |
+| `-e NUM, --encrypt NUM` | Apply NUM layers of encryption (less than 5 is recommended) |
 | `-j NUM, --junk-code NUM` | Insert NUM random junk statements |
-| `-r, --remove-comments` | Remove comments from the original code |
+| `-r, --remove-comments` | Remove comments from the original code (enabled by default) |
 | `-o, --obfuscate-imports` | Obfuscate import statements and their references |
 | `-i, --identifier-rename` | Rename variables, functions and class names |
 | `-d, --dynamic-exec` | Wrap function bodies with dynamic execution |
 | `-a, --all` | Apply all obfuscation techniques except encryption |
 | `-v, --verbose` | Log every step of the obfuscation process |
+| `--version` | Show PyFuscator version and exit |
 
-### Example Commands
+## Examples
 
-Basic obfuscation with identifier renaming and 2 encryption layers:
+Here are some examples of PyFuscator usage:
+
 ```bash
-python python-obfuscator.py -i -e 2 input.py output.py
+# Basic obfuscation with identifier renaming and 2 encryption layers
+pyfuscator -i -e 2 input.py output.py
+
+# Maximum obfuscation with all features enabled
+pyfuscator -i -e 3 -j 300 -o -d input.py output.py
+
+# Only remove comments
+pyfuscator -r input.py output.py
+
+# Only identifier renaming
+pyfuscator -i input.py output.py
+
+# Only add junk code
+pyfuscator -j 150 input.py output.py
+
+# With verbose logging
+pyfuscator -v -i -e 1 -j 50 input.py output.py
+
+# Apply all obfuscation techniques except encryption
+pyfuscator -a input.py output.py
+
+# Apply all techniques with 2 encryption layers
+pyfuscator -a -e 2 input.py output.py
 ```
 
-Maximum obfuscation with all features enabled:
-```bash
-python python-obfuscator.py -i -e 3 -j 300 -r -o -d input.py output.py
-```
+## Obfuscation Process
 
-Only identifier renaming:
-```bash
-python python-obfuscator.py -i input.py output.py
-```
-
-Only add junk code:
-```bash
-python python-obfuscator.py -j 150 input.py output.py
-```
-
-Apply all techniques with verbose logging:
-```bash
-python python-obfuscator.py -a -e 2 -v input.py output.py
-```
-
-## 🛡️ Obfuscation Process
-
-1. **Comment Removal**: Strips all comments while maintaining code structure
+1. **Comment Removal**: Strips all comments and docstrings (always applied by default)
 2. **Junk Code Injection**: Inserts randomized, syntactically valid code at the beginning and end
 3. **Import Obfuscation**: Transforms import statements into dynamic base64-encoded imports
 4. **Identifier Renaming**: Changes all variable, function and class names to random strings
@@ -98,7 +121,7 @@ python python-obfuscator.py -a -e 2 -v input.py output.py
 6. **Dynamic Function Execution**: Wraps function bodies with opaque execution wrappers
 7. **Multi-layer Encryption**: Applies multiple layers of encryption algorithms
 
-## 📝 Example Transformation
+## Example Transformation
 
 ### Original Code:
 ```python
@@ -144,25 +167,25 @@ if ((44 % 2) == 1):
     cwrOaraT = 90
 ```
 
-## ⚠️ Important Notes
+## Important Notes
 
 1. The obfuscated code will run slower than the original due to the added complexity
 2. Some code analysis tools may flag obfuscated code as suspicious
-3. At least one obfuscation method must be selected when running the tool
+3. Comment removal is applied by default but can also be explicitly specified with `-r`
 4. Excessive encryption layers can significantly increase code size and runtime
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Feel free to open issues or submit pull requests.
 
-## 📧 Contact
+## Contact
 
 If you have any questions or feedback, please open an issue on GitHub.
 
 ---
 
-⭐ If you find this project useful, please star it on GitHub!
+If you find this project useful, please star it on GitHub!

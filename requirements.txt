@@ -1,2 +1,4 @@
-astunparse
-colorama
+astunparse==1.6.3
+colorama==0.4.6
+six>=1.12.0
+wheel>=0.23.0

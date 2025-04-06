@@ -1,146 +1,168 @@
-# pyfuscator
+# PyFuscator
 
-## Project Overview
-
-`pyfuscator.py` is a Python-based tool designed to obfuscate code written in various scripting languages. It utilizes multiple techniques to transform code into a form that is more difficult to understand and reverse engineer. These techniques are ideal for protecting sensitive logic, intellectual property, or code that needs to be obscured for security reasons.
-
-The tool supports various obfuscation methods, including:
-- Blob/Rabbit Holes
-- Identifier Renaming (Name Mangling)
-- Removing Comments and Formatting
-- String Encryption/Encoding
-- Dynamic Code Execution
-- Manual Control Flow Rewriting
-
-The obfuscation process generates a "hard-to-read" version of your source code while maintaining its original functionality. The obfuscated code is output to a new file, which you can then use to distribute or protect your logic.
-
-## Usage
-
-The tool is executed via the command line and takes two arguments:
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.6%2B-blue" alt="Python 3.6+"/>
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License: MIT"/>
+  <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status: Active"/>
+</p>
 
 ```
-python pyfuscator.py <file-to-obfuscate> <result>
+             __                  _           
+  _ __ _  _ / _|_  _ ___ __ __ _| |_ ___ _ _ 
+ | '_ \ || |  _| || (_-</ _/ _` |  _/ _ \ '_|
+ | .__/\_, |_|  \_,_/__/\__\__,_|\__\___/_|  
+ |_|   |__/                                  
 ```
 
-Where:
-- `<file-to-obfuscate>` is the path to the source code file you want to obfuscate.
-- `<result>` is the path to the file where the obfuscated code will be saved.
+**PyFuscator** is an advanced Python code obfuscation tool designed to transform your code into a form that is extremely difficult to understand and reverse engineer while preserving its original functionality.
 
-### Example:
-```
-python pyfuscator.py example_script.py obfuscated_script.py
-```
+## 🔒 Features
 
-## Features & Techniques
+PyFuscator provides multiple layers of obfuscation through a combination of techniques:
 
-### 1. **Blob/Rabbit Holes**
-The code is obfuscated by introducing "rabbit holes"—confusing and unnecessary segments of code designed to mislead anyone trying to reverse-engineer it. This technique makes it harder for the attacker to find the core functionality of the program by adding layers of confusion.
+- **🔄 Identifier Renaming** - Transforms variable, function, and class names into meaningless random strings
+- **📦 Import Obfuscation** - Disguises import statements and their references throughout the code
+- **🔡 String Encryption** - Encrypts string literals with base64 encoding and dynamic decryption
+- **📃 Junk Code Insertion** - Adds randomly generated, syntactically valid but unreachable code
+- **⚙️ Dynamic Function Execution** - Wraps function bodies with dynamic execution to hide logic
+- **⛓️ Multi-layer Encryption** - Applies multiple layers of encryption with various algorithms
+- **✂️ Comment Removal** - Strips away comments and formatting to reduce clarity
 
-### 2. **Identifier Renaming (Name Mangling)**
-All function, variable, and class names are automatically renamed to meaningless strings (e.g., turning `calculate_sum` into `a1b2c3`). This makes it difficult to understand the code’s structure and logic.
+## 🚀 Installation
 
-### 3. **Removing Comments and Formatting**
-All comments, docstrings, and extra whitespace are removed to reduce the clarity of the code. Without meaningful comments or explanations, the code becomes more difficult to follow and reverse-engineer.
-
-### 4. **String Encryption/Encoding**
-Strings in the code, including hardcoded values such as passwords or key phrases, are encrypted or encoded. For instance, strings might be encoded in Base64 and then dynamically decoded at runtime. This technique ensures that sensitive information isn’t visible in the clear within the source code.
-
-### 5. **Dynamic Code Execution**
-Certain parts of the code are obfuscated and encoded so that they can only be decoded and executed dynamically at runtime. This can involve using Python's `exec()` function or other dynamic execution methods to delay the understanding of critical code parts until runtime.
-
-### 6. **Manual Control Flow Rewriting**
-The logical flow of the program is altered by refactoring loops and conditionals, making the structure of the code less intuitive. Redundant or "dummy" code is inserted that does not affect the final output, but increases the complexity and difficulty of analysis.
-
-## Installation
-
-To use `pyfuscator.py`, you need Python 3.x installed on your system. You can check if Python is installed by running the following command in your terminal:
-
-```
-python --version
+1. Clone the repository:
+```bash
+git clone https://github.com/spiegelin/PyFuscator.git
+cd PyFuscator
 ```
 
-If Python is not installed, please download and install it from [python.org](https://www.python.org/downloads/).
-
-### Dependencies
-```zsh
+2. Install dependencies:
+```bash
 pip install -r requirements.txt
 ```
 
-## Example Workflow
+## 📋 Usage
 
-1. **Prepare the Script to Obfuscate:**
-   Place the script you want to obfuscate in a folder on your machine.
+Basic usage:
+```bash
+python python-obfuscator.py [options] input_file output_file
+```
 
-2. **Run the Obfuscation Tool:**
-   Run the tool with the following command:
+### Command Line Options
 
-   ```
-   python pyfuscator.py your_script.py obfuscated_script.py
-   ```
+| Option | Description |
+|--------|-------------|
+| `-e NUM, --encrypt NUM` | Apply NUM layers of encryption |
+| `-j NUM, --junk-code NUM` | Insert NUM random junk statements |
+| `-r, --remove-comments` | Remove comments from the original code |
+| `-o, --obfuscate-imports` | Obfuscate import statements and their references |
+| `-i, --identifier-rename` | Rename variables, functions and class names |
+| `-d, --dynamic-exec` | Wrap function bodies with dynamic execution |
+| `-a, --all` | Apply all obfuscation techniques except encryption |
+| `-v, --verbose` | Log every step of the obfuscation process |
 
-3. **Obfuscated Code Output:**
-   The tool will generate an obfuscated version of your script in the `obfuscated_script.py` file. This file will be difficult to read or reverse-engineer, but it will still perform the same operations as the original.
+### Example Commands
 
-4. **Review and Distribute:**
-   You can now safely distribute the obfuscated code knowing that it is much harder for anyone to reverse-engineer or understand the logic.
+Basic obfuscation with identifier renaming and 2 encryption layers:
+```bash
+python python-obfuscator.py -i -e 2 input.py output.py
+```
 
-## Example
+Maximum obfuscation with all features enabled:
+```bash
+python python-obfuscator.py -i -e 3 -j 300 -r -o -d input.py output.py
+```
 
-### Input Code (`example_script.py`):
+Only identifier renaming:
+```bash
+python python-obfuscator.py -i input.py output.py
+```
 
+Only add junk code:
+```bash
+python python-obfuscator.py -j 150 input.py output.py
+```
+
+Apply all techniques with verbose logging:
+```bash
+python python-obfuscator.py -a -e 2 -v input.py output.py
+```
+
+## 🛡️ Obfuscation Process
+
+1. **Comment Removal**: Strips all comments while maintaining code structure
+2. **Junk Code Injection**: Inserts randomized, syntactically valid code at the beginning and end
+3. **Import Obfuscation**: Transforms import statements into dynamic base64-encoded imports
+4. **Identifier Renaming**: Changes all variable, function and class names to random strings
+5. **String Encryption**: Encrypts string literals with base64 encoding
+6. **Dynamic Function Execution**: Wraps function bodies with opaque execution wrappers
+7. **Multi-layer Encryption**: Applies multiple layers of encryption algorithms
+
+## 📝 Example Transformation
+
+### Original Code:
 ```python
-# This is a simple example script
+import numpy as np
 
 def calculate_sum(a, b):
+    """Add two numbers and return the result."""
     return a + b
 
 result = calculate_sum(10, 20)
 print("The result is:", result)
 ```
 
-### Output Code (`obfuscated_script.py`):
-
+### Obfuscated Code:
 ```python
-def xueyrVNh(ZS7ZViOE, XPL0E46l, CgtWZOwe):
-    if (42 == 43):
-        print('junk')
-    exec(__import__('base64').b64decode('ZGVmIEE1YnYxdkV6KCk6CiAgICAKICAgIHBhc3MKICAgIHBhc3MKQTVidjF2RXooKQ==').decode('utf-8'), {**globals(), **locals()})
-for dAXlTFyf in range(16):
-    rEuFKITP = (dAXlTFyf + 10)
-if ((44 % 2) == 0):
-    pass
-cwrOaraT = 90
-pass
-if ((67 % 2) == 0):
-    pass
-for ywEpfHsv in range(10):
-    IEybydA9 = (ywEpfHsv + 8)
-for NaiNbZvJ in range(20):
-    UJjD4w3E = (NaiNbZvJ + 4)
-pass
-
-def o7RHESLU(wbcVB4TI):
-    if (42 == 43):
-        print('junk')
-    exec(__import__('base64').b64decode('ZGVmIHM4OTYxTk5JKCk6CiAgICAKICAgIHBhc3MKICAgIHBhc3MKICAgIHBhc3MKICAgIHBhc3MKICAgIHBhc3MKczg5NjFOTkkoKQ==').decode('utf-8'), {**globals(), **locals()})
+# Junk code (beginning)
 fVusrDIK = 992
 pass
 Mh3F2dnk = 860
 pass
 
-def XOl2HEM3(NmEOKslC, FboMbHmm):
-    if (42 == 43):
+# Import obfuscation
+NmEOKslC = __import__(__import__('base64').b64decode('bnVtcHk=').decode('utf-8'))
+
+# Function with identifier renaming + dynamic execution
+def XOl2HEM3(i7RvB, FboMb):
+    # Dummy unreachable condition
+    if (15 < 4):
         print('junk')
-    exec(__import__('base64').b64decode('ZGVmIEtYNHVoamhzKCk6CiAgICAKICAgIHJldHVybiAoTm1FT0tzbEMgKyBGYm9NYkhtbSkKS1g0dWhqaHMoKQ==').decode('utf-8'), {**globals(), **locals()})
+    # Dynamic function body execution
+    def KX4uhj():
+        return (i7RvB + FboMb)
+    result = KX4uhj()
+    return result
+
+# Renamed identifiers + encrypted string
 otVN82l6 = XOl2HEM3(10, 20)
 print(__import__('base64').b64decode('VGhlIHJlc3VsdCBpczo=').decode('utf-8'), otVN82l6)
+
+# Junk code (end)
+ywEpfHsv = [45, 23, 91]
+if ((44 % 2) == 1):
+    cwrOaraT = 90
 ```
 
-This is a very simplified example. The obfuscated code in the output will look like a series of meaningless names and encoded strings, making it difficult to reverse-engineer.
+## ⚠️ Important Notes
 
-## Contributing
+1. The obfuscated code will run slower than the original due to the added complexity
+2. Some code analysis tools may flag obfuscated code as suspicious
+3. At least one obfuscation method must be selected when running the tool
+4. Excessive encryption layers can significantly increase code size and runtime
 
-We welcome contributions to improve the tool! If you have any ideas for new obfuscation techniques or improvements, feel free to open an issue or submit a pull request.
+## 📜 License
 
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-Thank you for using `pyfuscator.py`, for any recommendations, open a pull request, I'll try tro review it shortly.
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to open issues or submit pull requests.
+
+## 📧 Contact
+
+If you have any questions or feedback, please open an issue on GitHub.
+
+---
+
+⭐ If you find this project useful, please star it on GitHub!

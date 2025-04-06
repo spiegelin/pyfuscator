@@ -8,6 +8,7 @@ import re
 import string
 import sys
 import tokenize
+import argparse
 
 from colorama import Fore, Style, init
 init(autoreset=True)
@@ -15,6 +16,15 @@ init(autoreset=True)
 # Global sets/dictionaries for import obfuscation.
 IMPORT_ALIASES = set()
 IMPORT_MAPPING = {}  # Maps original import names (or original alias) to new random alias.
+
+# Banner for the help menu - add color codes
+BANNER = fr'''{Fore.CYAN}
+             __                  _           
+  _ __ _  _ / _|_  _ ___ __ __ _| |_ ___ _ _ 
+ | '_ \ || |  _| || (_-</ _/ _` |  _/ _ \ '_|
+ | .__/\_, |_|  \_,_/__/\__\__,_|\__\___/_|  
+ |_|   |__/                                  
+{Style.RESET_ALL}'''
 
 # --- Helper functions ---
 
@@ -527,10 +537,38 @@ class ReplaceImportNames(ast.NodeTransformer):
             return ast.copy_location(ast.Name(id=IMPORT_MAPPING[node.id], ctx=node.ctx), node)
         return node
 
+class ImportTracker(ast.NodeVisitor):
+    """
+    Track all imports to ensure consistent variable renaming even when 
+    import obfuscation is not explicitly enabled.
+    """
+    def __init__(self):
+        self.imports = {}  # Maps original module/name to its usage
+    
+    def visit_Import(self, node):
+        for alias in node.names:
+            # Save the imported name and any alias
+            module_name = alias.name
+            use_name = alias.asname if alias.asname else module_name
+            self.imports[use_name] = module_name
+        self.generic_visit(node)
+    
+    def visit_ImportFrom(self, node):
+        for alias in node.names:
+            # Handle "from module import name [as alias]"
+            name = alias.name
+            use_name = alias.asname if alias.asname else name
+            if node.module:
+                # For "from module import name", save both the module and the name
+                self.imports[use_name] = f"{node.module}.{name}"
+            else:
+                # For relative imports "from . import name"
+                self.imports[use_name] = name
+        self.generic_visit(node)
 
 class RenameIdentifiers(ast.NodeTransformer):
     """Rename variable, function, and class names to random strings."""
-    def __init__(self):
+    def __init__(self, import_aware=True):
         super().__init__()
         self.mapping = {}
         self.reserved = set(dir(__import__('builtins'))) | {
@@ -540,14 +578,51 @@ class RenameIdentifiers(ast.NodeTransformer):
             "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise",
             "return", "try", "while", "with", "yield"
         }
-        self.reserved.update(IMPORT_ALIASES)
-        self.reserved.update(IMPORT_MAPPING.keys())
+        
+        # Track all imports if import-aware mode is enabled
+        if import_aware:
+            self.reserved.update(IMPORT_ALIASES)
+            self.reserved.update(IMPORT_MAPPING.keys())
+            
+            # Track direct import references
+            self.import_mapping = {}  # Maps original imported names to their new names
+            self.import_references = set()  # Set of all imported names we've seen
+        else:
+            self.import_mapping = {}
+            self.import_references = set()
+        
     def _new_name(self, old_name):
         if old_name in self.mapping:
             return self.mapping[old_name]
         new = random_name()
         self.mapping[old_name] = new
         return new
+    
+    def visit_Import(self, node):
+        # Track imported names
+        for alias in node.names:
+            module_name = alias.name
+            use_name = alias.asname if alias.asname else module_name
+            # Store the used import name
+            self.import_references.add(use_name)
+            # If this is a name we'll reference later, map it consistently
+            if use_name not in self.import_mapping:
+                self.import_mapping[use_name] = self._new_name(use_name)
+        # Continue with normal processing
+        return self.generic_visit(node)
+    
+    def visit_ImportFrom(self, node):
+        # Track names from "from module import name"
+        for alias in node.names:
+            name = alias.name
+            use_name = alias.asname if alias.asname else name
+            # Store the used import name
+            self.import_references.add(use_name)
+            # If this is a name we'll reference later, map it consistently
+            if use_name not in self.import_mapping:
+                self.import_mapping[use_name] = self._new_name(use_name)
+        # Continue with normal processing
+        return self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
         node.name = self._new_name(node.name)
@@ -564,6 +639,13 @@ class RenameIdentifiers(ast.NodeTransformer):
         # Do not rename names that are import aliases (they've been replaced)
         if node.id in IMPORT_MAPPING.values():
             return node
+            
+        # Special handling for imported names
+        if node.id in self.import_references:
+            # Use the consistent mapping for imported names
+            node.id = self.import_mapping[node.id]
+            return node
+            
         if isinstance(node.ctx, (ast.Store, ast.Load, ast.Del)):
             if node.id not in self.reserved:
                 node.id = self._new_name(node.id)
@@ -729,32 +811,35 @@ class InsertJunkCode(ast.NodeTransformer):
     """
     Insert randomized, do-nothing code into the module at both the beginning and end.
     """
-    def __init__(self, num_statements=100, pep8_compliant=True, junk_at_end=True):
+    def __init__(self, num_statements=100, pep8_compliant=True, junk_at_end=True, verbose=False):
         self.num_statements = num_statements
         self.pep8_compliant = pep8_compliant
         self.junk_at_end = junk_at_end
+        self.verbose = verbose
 
     def visit_Module(self, node):
-        print(Fore.YELLOW + f"[INFO] Generating {self.num_statements} junk code statements...")
+        if self.verbose:
+            print(Fore.YELLOW + f"[INFO] Generating {self.num_statements} junk code statements...")
         
         # Calculate how many statements to put at the beginning and end
         begin_statements = self.num_statements // 2
         end_statements = self.num_statements - begin_statements
         
+        total_statements_added = 0
+        
         # Generate junk code for the beginning
-        print(Fore.YELLOW + f"[INFO] Generating {begin_statements} statements for the beginning...")
         begin_junk = generate_random_blob_code(begin_statements)
         
         # Generate junk code for the end (if enabled)
         end_junk_ast = None
         if self.junk_at_end:
-            print(Fore.YELLOW + f"[INFO] Generating {end_statements} statements for the end...")
             end_junk = generate_random_blob_code(end_statements)
             try:
                 end_junk_ast = ast.parse(end_junk)
-                print(Fore.GREEN + f"[SUCCESS] Generated {len(end_junk_ast.body)} valid junk statements for the end")
+                total_statements_added += len(end_junk_ast.body)
             except SyntaxError:
-                print(Fore.YELLOW + "[WARNING] End junk code had syntax errors. Trying in smaller chunks...")
+                if self.verbose:
+                    print(Fore.YELLOW + "[WARNING] End junk code had syntax errors. Trying in smaller chunks...")
                 end_statements_list = []
                 # Try smaller chunks
                 for i in range(10):
@@ -762,6 +847,7 @@ class InsertJunkCode(ast.NodeTransformer):
                     try:
                         small_junk_ast = ast.parse(small_junk)
                         end_statements_list.extend(small_junk_ast.body)
+                        total_statements_added += len(small_junk_ast.body)
                     except SyntaxError:
                         continue
                 end_junk_ast = ast.Module(body=end_statements_list, type_ignores=[])
@@ -769,21 +855,24 @@ class InsertJunkCode(ast.NodeTransformer):
         # Make sure the beginning junk code can be parsed
         try:
             begin_junk_ast = ast.parse(begin_junk)
-            print(Fore.GREEN + f"[SUCCESS] Generated {len(begin_junk_ast.body)} valid junk statements for the beginning")
+            total_statements_added += len(begin_junk_ast.body)
             
             # Add junk code to the beginning of the module
             if self.junk_at_end and end_junk_ast and end_junk_ast.body:
                 # Add junk to both beginning and end
                 node.body = begin_junk_ast.body + node.body + end_junk_ast.body
-                print(Fore.GREEN + f"[SUCCESS] Added junk code at both beginning ({len(begin_junk_ast.body)} statements) and end ({len(end_junk_ast.body)} statements)")
+                if self.verbose:
+                    print(Fore.GREEN + f"[SUCCESS] Added {total_statements_added} junk statements")
             else:
                 # Add junk only to the beginning
                 node.body = begin_junk_ast.body + node.body
-                print(Fore.GREEN + f"[SUCCESS] Added junk code only at the beginning ({len(begin_junk_ast.body)} statements)")
+                if self.verbose:
+                    print(Fore.GREEN + f"[SUCCESS] Added {total_statements_added} junk statements")
                 
         except SyntaxError:
             # If there's a syntax error in the junk code, try with smaller chunks
-            print(Fore.YELLOW + "[WARNING] Beginning junk code had syntax errors. Trying with smaller chunks...")
+            if self.verbose:
+                print(Fore.YELLOW + "[WARNING] Junk code had syntax errors. Trying with smaller chunks...")
             begin_statements_list = []
             
             # Generate smaller chunks of junk code
@@ -792,9 +881,10 @@ class InsertJunkCode(ast.NodeTransformer):
                 try:
                     small_junk_ast = ast.parse(small_junk)
                     begin_statements_list.extend(small_junk_ast.body)
-                    print(Fore.GREEN + f"[SUCCESS] Chunk {i+1}/10: Added {len(small_junk_ast.body)} valid statements")
+                    total_statements_added += len(small_junk_ast.body)
                 except SyntaxError:
-                    print(Fore.YELLOW + f"[WARNING] Chunk {i+1}/10: Syntax error, skipping")
+                    if self.verbose:
+                        print(Fore.YELLOW + f"[WARNING] Chunk {i+1}/10: Syntax error, skipping")
                     continue  # Skip this chunk
             
             # Add the valid junk to the beginning and end of the module
@@ -802,19 +892,57 @@ class InsertJunkCode(ast.NodeTransformer):
                 if self.junk_at_end and end_junk_ast and end_junk_ast.body:
                     # Add junk to both beginning and end
                     node.body = begin_statements_list + node.body + end_junk_ast.body
-                    print(Fore.GREEN + f"[SUCCESS] Added junk code at both beginning ({len(begin_statements_list)} statements) and end ({len(end_junk_ast.body)} statements)")
+                    if self.verbose:
+                        print(Fore.GREEN + f"[SUCCESS] Added {total_statements_added} junk statements")
                 else:
                     # Add junk only to the beginning
                     node.body = begin_statements_list + node.body
-                    print(Fore.GREEN + f"[SUCCESS] Added junk code only at the beginning ({len(begin_statements_list)} statements)")
+                    if self.verbose:
+                        print(Fore.GREEN + f"[SUCCESS] Added {total_statements_added} junk statements")
             else:
-                print(Fore.YELLOW + "[WARNING] Could not generate valid junk code for the beginning. Proceeding without it.")
+                if self.verbose:
+                    print(Fore.YELLOW + "[WARNING] Could not generate valid junk code for the beginning. Proceeding without it.")
                 
                 # If we at least have end junk, add that
                 if self.junk_at_end and end_junk_ast and end_junk_ast.body:
                     node.body = node.body + end_junk_ast.body
-                    print(Fore.GREEN + f"[SUCCESS] Added junk code only at the end ({len(end_junk_ast.body)} statements)")
+                    if self.verbose:
+                        print(Fore.GREEN + f"[SUCCESS] Added {total_statements_added} junk statements")
         
+        return node
+
+class ImportRenamer(ast.NodeTransformer):
+    """Rename import statements themselves even without full import obfuscation."""
+    def __init__(self, mapping=None):
+        self.mapping = mapping or {}
+    
+    def visit_Import(self, node):
+        for alias in node.names:
+            # For each imported module, generate a new name if needed
+            module_name = alias.name
+            if alias.asname:
+                # If there's an explicit alias, update it
+                if alias.asname in self.mapping:
+                    alias.asname = self.mapping[alias.asname]
+            else:
+                # If there's no alias, the module name itself is used
+                if module_name in self.mapping:
+                    # Create an alias for the module
+                    alias.asname = self.mapping[module_name]
+        return node
+    
+    def visit_ImportFrom(self, node):
+        for alias in node.names:
+            # For imported names, check if we should rename
+            if alias.asname:
+                # If there's an explicit alias, update it
+                if alias.asname in self.mapping:
+                    alias.asname = self.mapping[alias.asname]
+            else:
+                # If no alias, the name itself is used
+                if alias.name in self.mapping:
+                    # Create an alias for the imported name
+                    alias.asname = self.mapping[alias.name]
         return node
 
 def set_parent_nodes(tree):
@@ -825,124 +953,252 @@ def set_parent_nodes(tree):
     return tree
 
 # --- Main processing function with enhanced encryption ---
-def obfuscate_file(input_file, output_file, encryption_layers=2, junk_statements=200, pep8_compliant=True, junk_at_end=True):
+def obfuscate_file(input_file, output_file, args):
     """
     Obfuscate a Python file with advanced techniques.
     
     Args:
         input_file (str): Path to the input Python file
         output_file (str): Path to write the obfuscated output
-        encryption_layers (int): Number of encryption layers to apply
-        junk_statements (int): Number of junk code statements to insert
-        pep8_compliant (bool): Whether to follow PEP 8 style guidelines
-        junk_at_end (bool): Whether to add junk code at the end of the file as well
+        args: Command line arguments
     """
-    print(Fore.CYAN + f"[INFO] Reading input file: {input_file}")
+    if args.verbose:
+        print(Fore.CYAN + f"[INFO] Reading input file: {input_file}")
+    else:
+        print(Fore.CYAN + f"Processing {input_file}...")
+        
     with open(input_file, "r", encoding="utf-8") as f:
         source = f.read()
 
-    print(Fore.YELLOW + "[INFO] Removing comments and extra whitespace...")
-    source_no_comments = remove_comments(source)
+    # Apply transformations based on command line arguments
+    if args.remove_comments:
+        if args.verbose:
+            print(Fore.YELLOW + "[INFO] Removing comments and extra whitespace...")
+        source_no_comments = remove_comments(source)
+    else:
+        source_no_comments = source
 
-    print(Fore.YELLOW + "[INFO] Parsing source into AST...")
+    if args.verbose:
+        print(Fore.YELLOW + "[INFO] Parsing source into AST...")
     tree = ast.parse(source_no_comments, filename=input_file)
     
     # Set parent nodes for docstring detection
-    print(Fore.YELLOW + "[INFO] Setting parent nodes for AST...")
+    if args.verbose:
+        print(Fore.YELLOW + "[INFO] Setting parent nodes for AST...")
     set_parent_nodes(tree)
 
-    print(Fore.YELLOW + f"[INFO] Inserting {junk_statements} junk code statements...")
-    tree = InsertJunkCode(
-        num_statements=junk_statements, 
-        pep8_compliant=pep8_compliant,
-        junk_at_end=junk_at_end
-    ).visit(tree)
+    # Apply junk code if specified
+    if args.junk_code > 0:
+        if args.verbose:
+            print(Fore.YELLOW + f"[INFO] Inserting {args.junk_code} junk code statements...")
+        tree = InsertJunkCode(
+            num_statements=args.junk_code, 
+            pep8_compliant=True,
+            junk_at_end=True,
+            verbose=args.verbose
+        ).visit(tree)
 
-    print(Fore.YELLOW + "[INFO] Obfuscating import statements...")
-    tree = ObfuscateImports().visit(tree)
-    print(Fore.YELLOW + "[INFO] Replacing original import names with aliases...")
-    tree = ReplaceImportNames().visit(tree)
+    # First extract import information
+    import_tracker = ImportTracker()
+    import_tracker.visit(tree)
 
-    print(Fore.YELLOW + "[INFO] Renaming identifiers...")
-    tree = RenameIdentifiers().visit(tree)
-    print(Fore.YELLOW + "[INFO] Encrypting strings...")
-    tree = EncryptStrings().visit(tree)
-    print(Fore.YELLOW + "[INFO] Wrapping function bodies with dynamic exec...")
-    tree = DynamicFunctionBody().visit(tree)
+    # Apply import obfuscation if specified
+    if args.obfuscate_imports:
+        if args.verbose:
+            print(Fore.YELLOW + "[INFO] Obfuscating import statements...")
+        tree = ObfuscateImports().visit(tree)
+        if args.verbose:
+            print(Fore.YELLOW + "[INFO] Replacing original import names with aliases...")
+        tree = ReplaceImportNames().visit(tree)
+        
+    # Apply identifier renaming if specified
+    if args.identifier_rename:
+        if args.obfuscate_imports:
+            # In this case, RenameIdentifiers can use the global IMPORT_MAPPING
+            if args.verbose:
+                print(Fore.YELLOW + "[INFO] Renaming identifiers...")
+            tree = RenameIdentifiers(import_aware=True).visit(tree)
+        else:
+            # Otherwise, RenameIdentifiers needs to handle imports itself
+            if args.verbose:
+                print(Fore.YELLOW + "[INFO] Renaming identifiers (with import tracking)...")
+            rename_identifiers = RenameIdentifiers(import_aware=False)
+            tree = rename_identifiers.visit(tree)
+            
+            # Now rename the import statements to match
+            if args.verbose:
+                print(Fore.YELLOW + "[INFO] Renaming import statements...")
+            tree = ImportRenamer(rename_identifiers.import_mapping).visit(tree)
     
-    print(Fore.YELLOW + "[INFO] Fixing missing locations in AST...")
+    if args.verbose:
+        print(Fore.YELLOW + "[INFO] Encrypting strings...")
+    tree = EncryptStrings().visit(tree)
+    
+    # Apply function body wrapping if specified
+    if args.dynamic_exec:
+        if args.verbose:
+            print(Fore.YELLOW + "[INFO] Wrapping function bodies with dynamic exec...")
+        tree = DynamicFunctionBody().visit(tree)
+    
+    if args.verbose:
+        print(Fore.YELLOW + "[INFO] Fixing missing locations in AST...")
     ast.fix_missing_locations(tree)
 
-    print(Fore.YELLOW + "[INFO] Unparsing AST to source code...")
+    if args.verbose:
+        print(Fore.YELLOW + "[INFO] Unparsing AST to source code...")
     obfuscated_code = astunparse.unparse(tree)
 
-    print(Fore.YELLOW + "[INFO] Fixing slice syntax issues...")
+    if args.verbose:
+        print(Fore.YELLOW + "[INFO] Fixing slice syntax issues...")
     obfuscated_code = fix_slice_syntax(obfuscated_code)
 
     # Apply encryption layers if requested
-    if encryption_layers > 0:
-        print(Fore.YELLOW + f"[INFO] Applying {encryption_layers} encryption layers...")
-        for i in range(encryption_layers):
+    if args.encrypt > 0:
+        if args.verbose:
+            print(Fore.YELLOW + f"[INFO] Applying {args.encrypt} encryption layers...")
+        for i in range(args.encrypt):
             method = random.randint(1, 4)
             if method == 1:
-                print(Fore.YELLOW + f"[INFO] Applying encryption method 1 (layer {i+1}/{encryption_layers})...")
+                if args.verbose:
+                    print(Fore.YELLOW + f"[INFO] Applying encryption method 1 (layer {i+1}/{args.encrypt})...")
                 obfuscated_code = encryption_method_1(obfuscated_code)
             elif method == 2:
-                print(Fore.YELLOW + f"[INFO] Applying encryption method 2 (layer {i+1}/{encryption_layers})...")
+                if args.verbose:
+                    print(Fore.YELLOW + f"[INFO] Applying encryption method 2 (layer {i+1}/{args.encrypt})...")
                 obfuscated_code = encryption_method_2(obfuscated_code)
             elif method == 3:
-                print(Fore.YELLOW + f"[INFO] Applying encryption method 3 (layer {i+1}/{encryption_layers})...")
+                if args.verbose:
+                    print(Fore.YELLOW + f"[INFO] Applying encryption method 3 (layer {i+1}/{args.encrypt})...")
                 obfuscated_code = encryption_method_3(obfuscated_code)
             else:
-                print(Fore.YELLOW + f"[INFO] Applying encryption method 4 (layer {i+1}/{encryption_layers})...")
+                if args.verbose:
+                    print(Fore.YELLOW + f"[INFO] Applying encryption method 4 (layer {i+1}/{args.encrypt})...")
                 obfuscated_code = encryption_method_4(obfuscated_code)
 
-    print(Fore.YELLOW + f"[INFO] Writing obfuscated code to {output_file}...")
+    if args.verbose:
+        print(Fore.YELLOW + f"[INFO] Writing obfuscated code to {output_file}...")
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(obfuscated_code)
     print(Fore.GREEN + f"[SUCCESS] Obfuscated file written to {output_file}")
-    print(Fore.GREEN + f"[SUCCESS] Obfuscation complete with {encryption_layers} encryption layers and {junk_statements} junk statements")
+    
+    # Summary message
+    tech_applied = []
+    if args.all:
+        tech_applied.append("all techniques")
+    else:
+        if args.remove_comments:
+            tech_applied.append("comment removal")
+        if args.junk_code > 0:
+            tech_applied.append(f"{args.junk_code} junk statements")
+        if args.obfuscate_imports:
+            tech_applied.append("import obfuscation")
+        if args.identifier_rename:
+            tech_applied.append("identifier renaming")
+        if args.dynamic_exec:
+            tech_applied.append("dynamic function execution")
+    
+    if args.encrypt > 0:
+        tech_applied.append(f"{args.encrypt} encryption layers")
+    
+    tech_str = ", ".join(tech_applied)
+    print(Fore.GREEN + f"[SUCCESS] Obfuscation complete with {tech_str}")
 
 # --- Main ---
 if __name__ == "__main__":
-    print(Fore.CYAN + "Python Code Obfuscator - Advanced Edition")
-    print(Fore.CYAN + "=========================================")
+    # If no arguments were provided, print banner and usage only
+    if len(sys.argv) == 1:
+        print(BANNER)
+        print(f"{Fore.YELLOW}Usage: {Fore.WHITE}python pyfuscator.py [options] input_file output_file{Style.RESET_ALL}")
+        print(f"\nUse {Fore.GREEN}-h{Style.RESET_ALL} or {Fore.GREEN}--help{Style.RESET_ALL} for more information.")
+        print(f"\nMade by {Fore.CYAN}@spiegelin{Style.RESET_ALL}")
+        sys.exit(0)
     
-    if len(sys.argv) < 3:
-        print(Fore.RED + "Usage: python python-obfuscator.py <input_script.py> <output_script.py> [encryption_layers] [junk_statements] [junk_at_end]")
+    # If help is requested, print banner first
+    if "-h" in sys.argv or "--help" in sys.argv:
+        print(BANNER)
+    
+    # Create the argument parser with colored help
+    parser = argparse.ArgumentParser(
+        prog="pyfuscator.py",
+        description=f"Made by {Fore.CYAN}@spiegelin{Style.RESET_ALL}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f'''{Fore.GREEN}Examples:{Style.RESET_ALL}
+  # Basic obfuscation with identifier renaming and 2 encryption layers
+  {Fore.YELLOW}python pyfuscator.py -i -e 2 input.py output.py{Style.RESET_ALL}
+  
+  # Maximum obfuscation with all features enabled
+  {Fore.YELLOW}python pyfuscator.py -i -e 3 -j 300 -r -o -d input.py output.py{Style.RESET_ALL}
+  
+  # Only identifier renaming
+  {Fore.YELLOW}python pyfuscator.py -i input.py output.py{Style.RESET_ALL}
+  
+  # Only add junk code
+  {Fore.YELLOW}python pyfuscator.py -j 150 input.py output.py{Style.RESET_ALL}
+  
+  # With verbose logging
+  {Fore.YELLOW}python pyfuscator.py -v -i -e 1 -j 50 input.py output.py{Style.RESET_ALL}
+  
+  # Apply all obfuscation techniques except encryption
+  {Fore.YELLOW}python pyfuscator.py -a input.py output.py{Style.RESET_ALL}
+  
+  # Apply all techniques with 2 encryption layers
+  {Fore.YELLOW}python pyfuscator.py -a -e 2 input.py output.py{Style.RESET_ALL}'''
+    )
+    
+    # Add arguments with colored help text
+    parser.add_argument("input_file", nargs="?", 
+                        help=f"{Fore.CYAN}Input Python file to obfuscate{Style.RESET_ALL}")
+    parser.add_argument("output_file", nargs="?", 
+                        help=f"{Fore.CYAN}Output file for obfuscated code{Style.RESET_ALL}")
+    
+    parser.add_argument("-e", "--encrypt", type=int, default=0, metavar="NUM",
+                        help=f"{Fore.GREEN}Apply NUM layers of encryption (less than 5 is recommended){Style.RESET_ALL}")
+    
+    parser.add_argument("-j", "--junk-code", type=int, default=0, metavar="NUM",
+                        help=f"{Fore.GREEN}Insert NUM random junk statements{Style.RESET_ALL}")
+    
+    parser.add_argument("-r", "--remove-comments", action="store_true",
+                        help=f"{Fore.GREEN}Remove comments from the original code{Style.RESET_ALL}")
+    
+    parser.add_argument("-o", "--obfuscate-imports", action="store_true",
+                        help=f"{Fore.GREEN}Obfuscate import statements and their references{Style.RESET_ALL}")
+    
+    parser.add_argument("-i", "--identifier-rename", action="store_true",
+                        help=f"{Fore.GREEN}Rename variables, functions and class names{Style.RESET_ALL}")
+    
+    parser.add_argument("-d", "--dynamic-exec", action="store_true",
+                        help=f"{Fore.GREEN}Wrap function bodies with dynamic execution{Style.RESET_ALL}")
+    
+    parser.add_argument("-a", "--all", action="store_true",
+                        help=f"{Fore.GREEN}Apply all obfuscation techniques except encryption{Style.RESET_ALL}")
+    
+    parser.add_argument("-v", "--verbose", action="store_true",
+                        help=f"{Fore.GREEN}Log every step of the obfuscation process{Style.RESET_ALL}")
+
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # When --all is specified, enable all other options except encryption
+    if args.all:
+        args.junk_code = args.junk_code or 200  # Use 200 as default if not specified
+        args.remove_comments = True
+        args.obfuscate_imports = True
+        args.identifier_rename = True
+        args.dynamic_exec = True
+    
+    # Check if required arguments are provided
+    if not args.input_file or not args.output_file:
+        print(Fore.RED + "Error: Both input and output files must be specified.")
+        parser.print_help()
         sys.exit(1)
     
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
+    # Ensure at least one obfuscation method is selected
+    if not (args.encrypt > 0 or args.junk_code > 0 or args.remove_comments or 
+            args.obfuscate_imports or args.identifier_rename or args.dynamic_exec):
+        print(Fore.RED + "Error: At least one obfuscation method must be selected.")
+        print(Fore.YELLOW + "Use one or more of: -e, -j, -r, -o, -i, -d, or -a")
+        parser.print_help()
+        sys.exit(1)
     
-    # Optional parameters
-    encryption_layers = 0
-    junk_statements = 200
-    junk_at_end = True
-    
-    if len(sys.argv) > 3:
-        try:
-            encryption_layers = int(sys.argv[3])
-            print(Fore.CYAN + f"[CONFIG] Using {encryption_layers} encryption layers")
-        except ValueError:
-            print(Fore.RED + "Error: encryption_layers must be an integer")
-            sys.exit(1)
-            
-    if len(sys.argv) > 4:
-        try:
-            junk_statements = int(sys.argv[4])
-            print(Fore.CYAN + f"[CONFIG] Using {junk_statements} junk statements")
-        except ValueError:
-            print(Fore.RED + "Error: junk_statements must be an integer")
-            sys.exit(1)
-            
-    if len(sys.argv) > 5:
-        try:
-            junk_at_end_str = sys.argv[5].lower()
-            junk_at_end = junk_at_end_str in ['true', 't', 'yes', 'y', '1']
-            print(Fore.CYAN + f"[CONFIG] Adding junk at end: {'Yes' if junk_at_end else 'No'}")
-        except:
-            print(Fore.RED + "Error: junk_at_end must be a boolean (true/false)")
-            sys.exit(1)
-    
-    obfuscate_file(input_file, output_file, encryption_layers, junk_statements, pep8_compliant=True, junk_at_end=junk_at_end)
+    # Apply selected obfuscation techniques
+    obfuscate_file(args.input_file, args.output_file, args)

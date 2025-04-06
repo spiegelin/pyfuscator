@@ -695,12 +695,25 @@ class EncryptStrings(ast.NodeTransformer):
             # No docstring, process normally
             self.generic_visit(node)
             return node
+    
+    def visit_JoinedStr(self, node):
+        # Don't transform f-strings as astunparse has issues with complex f-string content
+        return node
+
+    def visit_FormattedValue(self, node):
+        # Don't transform formatted values inside f-strings
+        return node
         
     def visit_Constant(self, node):
         if isinstance(node.value, str):
             # Check if this node is in an expression statement directly under a function/class/module
             # which would make it a docstring - we leave those unchanged
             if self.in_docstring:
+                return node
+
+            # Skip raw strings (strings with r prefix) or f-strings completely
+            # astunparse has issues with these when encrypted
+            if hasattr(node, 'kind') and node.kind in ('u', 'f', 'r', 'b', 'fr', 'rf', 'br', 'rb'):
                 return node
                 
             try:
@@ -713,7 +726,7 @@ class EncryptStrings(ast.NodeTransformer):
                 # If any errors, return the original
                 return node
         return node
-        
+
 class DynamicFunctionBody(ast.NodeTransformer):
     """
     Wrap the original function body with dynamic execution.

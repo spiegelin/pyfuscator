@@ -66,8 +66,6 @@ If Python is not installed, please download and install it from [python.org](htt
 pip install -r requirements.txt
 ```
 
-These libraries are included with Python by default, so no additional installations are necessary.
-
 ## Example Workflow
 
 1. **Prepare the Script to Obfuscate:**

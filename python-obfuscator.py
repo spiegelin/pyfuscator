@@ -19,71 +19,249 @@ IMPORT_MAPPING = {}  # Maps original import names (or original alias) to new ran
 # --- Helper functions ---
 
 def random_name(length=8):
-    # Ensure the first character is a letter.
+    """
+    Generate a random variable name that's a valid Python identifier.
+    Ensures it's not a Python keyword and starts with a letter.
+    """
+    # List of Python keywords to avoid
+    python_keywords = [
+        'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
+        'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except',
+        'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda',
+        'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while',
+        'with', 'yield'
+    ]
+    
+    # Ensure the first character is a letter
     first = random.choice(string.ascii_letters)
-    rest = ''.join(random.choices(string.ascii_letters + string.digits, k=length-1))
-    return first + rest
+    
+    # Generate the rest of the name with letters and digits
+    if length > 1:
+        rest = ''.join(random.choices(string.ascii_letters + string.digits, k=length-1))
+        name = first + rest
+    else:
+        name = first
+    
+    # Check if it's a Python keyword and regenerate if it is
+    if name in python_keywords:
+        return random_name(length)  # Recursive call to try again
+    
+    return name
 
 def encode_string(s):
+    """Encode a string to base64 and create a decode expression."""
     encoded = base64.b64encode(s.encode('utf-8')).decode('utf-8')
-    return f"(__import__('base64').b64decode('{encoded}').decode('utf-8'))"
+    return f"__import__('base64').b64decode('{encoded}').decode('utf-8')"
 
 def wrap_with_exec(code_str):
     b64_code = base64.b64encode(code_str.encode('utf-8')).decode('utf-8')
-    # Merge globals() and locals() so that dynamically executed code can access outer variables.
-    return f"exec(__import__('base64').b64decode('{b64_code}').decode('utf-8'), {{**globals(), **locals()}})"
+    # Always use exec since we're executing statements, not evaluating expressions
+    return f"exec(__import__('base64').b64decode('{b64_code}').decode('utf-8'), globals(), locals())"
 
-
+def validate_python_code(code_str):
+    """Validate if the provided string is valid Python code."""
+    try:
+        ast.parse(code_str)
+        return True
+    except SyntaxError:
+        return False
 
 def generate_random_statement():
-    """Generate a random Python statement that does nothing."""
-    statement_type = random.choice(["assignment", "loop", "if", "function_def", "pass_stmt"])
-    indent = "    "
-    if statement_type == "assignment":
-        var_name = random_name()
-        value = random.randint(0, 1000)
-        return f"{var_name} = {value}"
-    elif statement_type == "loop":
-        loop_var = random_name()
-        loop_count = random.randint(5, 20)
-        inner_var = random_name()
-        return f"for {loop_var} in range({loop_count}):\n{indent}{inner_var} = {loop_var} + {random.randint(1, 10)}"
-    elif statement_type == "if":
-        condition = random.randint(0, 100)
-        return f"if {condition} % 2 == 0:\n{indent}pass"
-    elif statement_type == "function_def":
-        func_name = random_name()
-        arg_count = random.randint(0, 3)
-        args = [random_name() for _ in range(arg_count)]
-        body_lines = [f"{indent}pass" for _ in range(random.randint(1, 5))]
-        return f"def {func_name}({', '.join(args)}):\n" + "\n".join(body_lines)
-    elif statement_type == "pass_stmt":
-        return "pass"
-    return ""
+    """Generate a random Python statement that follows PEP 8 style guidelines."""
+    # Decide on a statement type with weights favoring simpler constructs
+    type_weights = [
+        ("assignment", 0.3),
+        ("loop", 0.15),
+        ("conditional", 0.15),
+        ("function_def", 0.15),
+        ("simple_expression", 0.15),
+        ("class_def", 0.05),
+        ("try_except", 0.05)
+    ]
+    statement_types, weights = zip(*type_weights)
+    statement_type = random.choices(statement_types, weights=weights, k=1)[0]
+    
+    # Maximum number of attempts to generate valid code
+    max_attempts = 3
+    
+    for attempt in range(max_attempts):
+        try:
+            if statement_type == "assignment":
+                var_name = random_name()
+                # Simple assignments are safest
+                value_type = random.choice(["int", "str", "list", "dict"])
+                
+                if value_type == "int":
+                    value = str(random.randint(0, 1000))
+                elif value_type == "str":
+                    value = f"'{random_name(5)}'"
+                elif value_type == "list":
+                    items = []
+                    for _ in range(random.randint(1, 3)):
+                        items.append(str(random.randint(1, 100)))
+                    value = f"[{', '.join(items)}]"
+                elif value_type == "dict":
+                    items = []
+                    for _ in range(random.randint(1, 2)):
+                        key = random_name(3)
+                        items.append(f"'{key}': {random.randint(1, 100)}")
+                    value = f"{{{', '.join(items)}}}"
+                
+                code = f"{var_name} = {value}"
+                
+            elif statement_type == "loop":
+                var_name = random_name()
+                inner_var = random_name()
+                # Simple for loop with a safe range
+                loop_count = random.randint(3, 10)
+                body = f"{inner_var} = {var_name}"
+                code = f"for {var_name} in range({loop_count}):\n    {body}"
+                
+            elif statement_type == "conditional":
+                var_name = random_name()
+                # Simple if statement with a boolean condition
+                condition = random.choice([
+                    "True",
+                    "False",
+                    f"{random.randint(1, 10)} > {random.randint(1, 10)}"
+                ])
+                body = f"{var_name} = {random.randint(1, 100)}"
+                code = f"if {condition}:\n    {body}"
+                
+            elif statement_type == "function_def":
+                func_name = random_name()
+                # Simple function with no parameters
+                body = f"    return {random.randint(1, 100)}"
+                code = f"def {func_name}():\n{body}"
+                
+            elif statement_type == "simple_expression":
+                var_name = random_name()
+                # Very simple expressions that are unlikely to cause issues
+                expr = random.choice([
+                    f"{random.randint(1, 100)} + {random.randint(1, 100)}",
+                    f"'{random_name(4)}' + '{random_name(4)}'",
+                    f"len('{random_name(5)}')",
+                    f"bool({random.choice(['True', 'False', '0', '1'])})"
+                ])
+                code = f"{var_name} = {expr}"
+                
+            elif statement_type == "class_def":
+                class_name = ''.join(word.capitalize() for word in random_name().split('_'))
+                # Very simple class with just an init method
+                code = f"class {class_name}:\n    def __init__(self):\n        pass"
+                
+            elif statement_type == "try_except":
+                var_name = random_name()
+                # Simple try-except with a safe operation
+                code = f"try:\n    {var_name} = True\nexcept Exception:\n    {var_name} = False"
+            
+            else:
+                # Default safe assignment
+                var_name = random_name()
+                code = f"{var_name} = None"
+            
+            # Validate the generated code
+            if validate_python_code(code):
+                return code
+            
+        except Exception:
+            # If any exception occurs, continue to the next attempt
+            continue
+    
+    # If all attempts failed, return a very safe statement
+    return f"{random_name()} = None"
 
 def generate_random_blob_code(num_statements=50):
-    """Generate a bunch of random, do-nothing Python code as a string."""
-    code_lines = [generate_random_statement() for _ in range(num_statements)]
-    return "\n\n".join(code_lines)
+    """Generate valid Python code following PEP 8 style guidelines."""
+    valid_statements = []
+    attempts = 0
+    max_attempts = num_statements * 2  # Allow twice as many attempts as requested statements
+    
+    # Generate statements and validate each one
+    while len(valid_statements) < num_statements and attempts < max_attempts:
+        statement = generate_random_statement()
+        attempts += 1
+        
+        # Skip empty statements
+        if not statement.strip():
+            continue
+            
+        try:
+            # Try to parse the statement to verify it's valid
+            ast.parse(statement)
+            
+            # Add a newline after statements with indentation (like if, for, etc.)
+            if statement.strip().endswith(':'):
+                statement += '\n    pass'
+                
+            valid_statements.append(statement)
+        except SyntaxError:
+            # Skip invalid statements
+            continue
+    
+    # Join the statements with proper spacing according to PEP 8
+    # - Two blank lines between top-level functions and classes
+    # - One blank line between methods in a class
+    formatted_code = []
+    prev_was_class_or_func = False
+    
+    for stmt in valid_statements:
+        # If the previous statement was a class or function definition and this one is too,
+        # add two blank lines in between
+        is_class_or_func = stmt.lstrip().startswith(('def ', 'class '))
+        
+        if prev_was_class_or_func and is_class_or_func:
+            formatted_code.append("\n\n")
+        elif formatted_code:  # Add one blank line between all other statements
+            formatted_code.append("\n")
+            
+        formatted_code.append(stmt)
+        prev_was_class_or_func = is_class_or_func
+    
+    return ''.join(formatted_code)
 
 def remove_comments(source):
-    output = io.StringIO()
-    last_lineno = -1
-    last_col = 0
-    tokgen = tokenize.generate_tokens(io.StringIO(source).readline)
-    for tok in tokgen:
-        token_type, token_string, start, end, line = tok
-        lineno, col = start
-        if lineno > last_lineno:
-            last_col = 0
-        if token_type == tokenize.COMMENT:
-            continue
-        else:
-            if col > last_col:
-                output.write(" " * (col - last_col))
-            output.write(token_string)
-        last_lineno, last_col = end
-    return output.getvalue()
+    """
+    Remove comments from Python source code while preserving function structure.
+    This is a simpler approach that uses regex to remove only # comments.
+    """
+    import re
+    
+    # Only remove # comments, not docstrings
+    # This is safer to prevent indentation errors
+    lines = source.split('\n')
+    result = []
+    
+    for line in lines:
+        # Remove comments that start with #
+        comment_pos = line.find('#')
+        if comment_pos >= 0:
+            # Make sure the # is not inside a string
+            in_string = False
+            string_char = None
+            escaped = False
+            
+            for i, char in enumerate(line[:comment_pos]):
+                if escaped:
+                    escaped = False
+                    continue
+                
+                if char == '\\':
+                    escaped = True
+                    continue
+                
+                if not in_string and char in ['"', "'"]:
+                    in_string = True
+                    string_char = char
+                elif in_string and char == string_char:
+                    in_string = False
+            
+            if not in_string:
+                line = line[:comment_pos]
+        
+        result.append(line)
+    
+    return '\n'.join(result)
 
 def fix_slice_syntax(code):
     """
@@ -96,6 +274,148 @@ def fix_slice_syntax(code):
     pattern = re.compile(r'(\[)\(\s*(.*?)\s*\)(\])', re.DOTALL)
     fixed_code = pattern.sub(r'\1\2\3', code)
     return fixed_code
+
+# --- Encryption functions from ofuscator.py ---
+
+def generate_prime_number():
+    """Generate a random prime number."""
+    def check_if_it_is_prime(n):
+        if n < 2:
+            return False
+        for i in range(2, int(n**0.5) + 1):
+            if n % i == 0:
+                return False
+        return True
+
+    while True:
+        num = random.randint(1000, 1000000)
+        if check_if_it_is_prime(num):
+            return num
+
+def mod_exp(base, exp, mod):
+    """Modular exponentiation: (base^exp) % mod."""
+    result = 1
+    while exp > 0:
+        if exp % 2 == 1:
+            result = (result * base) % mod
+        base = (base * base) % mod
+        exp //= 2
+    return result
+
+def extended_gcd(a, b):
+    """Extended Euclidean algorithm to find modular inverse."""
+    old_r, r = a, b
+    old_s, s = 1, 0
+    old_t, t = 0, 1
+    while r != 0:
+        quotient = old_r // r
+        old_r, r = r, old_r - quotient * r
+        old_s, s = s, old_s - quotient * s
+        old_t, t = t, old_t - quotient * t
+    return old_s % b
+
+def encryption_method_1(code_to_encode):
+    """Encryption method 1: Linear congruential encryption."""
+    prime_number = generate_prime_number()
+    salt = random.randint(1, 300)
+    
+    # Encrypt
+    message_int = []
+    for b in code_to_encode:
+        message_int.append(ord(b))
+    ct = []
+    for number in message_int:
+        ct.append((prime_number * number + salt) % 256)
+    encrypted_message = ''.join([hex(i)[2:].zfill(2) for i in ct])
+    decryption_func_name = random_name()
+
+    # Generate output
+    output_content = ""
+    output_content += f"def {decryption_func_name}(prime_number, crypted_msg, salt):\n"
+    output_content += "    encryptedlist = [int(crypted_msg[i:i+2], 16) for i in range(0, len(crypted_msg), 2)]\n"
+    output_content += "    table = {((prime_number * char + salt) % 256): char for char in range(256)}\n"
+    output_content += "    recovery2 = [table.get(num) for num in encryptedlist]\n"
+    output_content += "    return bytes(recovery2)\n\n"
+    output_content += f"_crypted_code = \"{encrypted_message}\"\n"
+    output_content += f"_salt = {salt}\n"
+    output_content += f"_prime_number = {prime_number}\n"
+    output_content += f"_decrypted_code = {decryption_func_name}(_prime_number, _crypted_code, _salt).decode('utf-8')\n"
+    output_content += "exec(_decrypted_code)\n"
+    
+    return output_content
+
+def encryption_method_2(code_to_encode):
+    """Encryption method 2: XOR with shuffled key."""
+    salt = random.randint(50, 500)
+    key = random.randint(10, 250)
+    shuffle_key = list(range(256))
+    random.shuffle(shuffle_key)
+    reverse_key = {v: k for k, v in enumerate(shuffle_key)}
+    
+    encoded_bytes = bytearray()
+    for char in code_to_encode.encode():
+        transformed = (shuffle_key[(char ^ key) % 256] + salt) % 256
+        encoded_bytes.append(transformed)
+    
+    encrypted_message = ''.join([hex(i)[2:].zfill(2) for i in encoded_bytes])
+    decryption_func_name = random_name()
+    
+    output_content = ""
+    output_content += f"def {decryption_func_name}(encrypted_message, key, salt, reverse_key):\n"
+    output_content += "    encrypted_bytes = [int(encrypted_message[i:i+2], 16) for i in range(0, len(encrypted_message), 2)]\n"
+    output_content += "    decrypted_bytes = bytearray(reverse_key[(b - salt) % 256] ^ key for b in encrypted_bytes)\n"
+    output_content += "    return decrypted_bytes.decode('utf-8')\n\n"
+    
+    output_content += f"_crypted_code = \"{encrypted_message}\"\n"
+    output_content += f"_key = {key}\n"
+    output_content += f"_salt = {salt}\n"
+    output_content += f"_reverse_key = {reverse_key}\n"
+    output_content += f"_decrypted_code = {decryption_func_name}(_crypted_code, _key, _salt, _reverse_key)\n"
+    output_content += "exec(_decrypted_code)\n"
+    
+    return output_content
+
+def encryption_method_3(code):
+    """Encryption method 3: RSA-like encryption."""
+    prime1 = generate_prime_number()
+    prime2 = generate_prime_number()
+    n = prime1 * prime2
+    phi = (prime1 - 1) * (prime2 - 1)
+    e = 65537
+    d = extended_gcd(e, phi)
+    
+    encrypted_values = [mod_exp(ord(c), e, n) for c in code]
+    encrypted_hex = ','.join(str(i) for i in encrypted_values)
+    decrypt_func = random_name()
+    
+    output_code = f"def {decrypt_func}(encrypted, d, n):\n"
+    output_code += "    decrypted = ''.join(chr(pow(int(c), d, n)) for c in encrypted.split(','))\n"
+    output_code += "    return decrypted\n\n"
+    output_code += f"_crypted_code = \"{encrypted_hex}\"\n"
+    output_code += f"_n = {n}\n"
+    output_code += f"_d = {d}\n"
+    output_code += f"_decrypted_code = {decrypt_func}(_crypted_code, _d, _n)\n"
+    output_code += "exec(_decrypted_code)\n"
+    
+    return output_code
+
+def encryption_method_4(code):
+    """Encryption method 4: XOR with key array."""
+    key = [random.randint(1, 255) for _ in range(16)]
+    encrypted_values = [ord(code[i]) ^ key[i % len(key)] for i in range(len(code))]
+    encrypted_hex = ','.join(str(i) for i in encrypted_values)
+    key_hex = ','.join(str(k) for k in key)
+    decrypt_func = random_name()
+    
+    output_code = f"def {decrypt_func}(encrypted, key):\n"
+    output_code += "    decrypted = ''.join(chr(encrypted[i] ^ key[i % len(key)]) for i in range(len(encrypted)))\n"
+    output_code += "    return decrypted\n\n"
+    output_code += f"_encrypted_code = [{encrypted_hex}]\n"
+    output_code += f"_key = [{key_hex}]\n"
+    output_code += f"_decrypted_code = {decrypt_func}(_encrypted_code, _key)\n"
+    output_code += "exec(_decrypted_code)\n"
+    
+    return output_code
 
 # --- AST Transformers ---
 
@@ -256,51 +576,267 @@ class RenameIdentifiers(ast.NodeTransformer):
 
 class EncryptStrings(ast.NodeTransformer):
     """Replace string literals with a runtime call to decode a Base64 string."""
+    def __init__(self):
+        self.in_docstring = False
+        
+    def visit_Module(self, node):
+        # Process children
+        self.generic_visit(node)
+        return node
+        
+    def visit_FunctionDef(self, node):
+        # Check for docstring
+        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str):
+            # Skip the docstring
+            docstring = node.body[0]
+            # Process everything after the docstring
+            for item in node.body[1:]:
+                self.visit(item)
+            # Return with the docstring preserved
+            return node
+        else:
+            # No docstring, process normally
+            self.generic_visit(node)
+            return node
+    
+    def visit_ClassDef(self, node):
+        # Handle docstrings the same way as in functions
+        if node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str):
+            # Skip the docstring
+            docstring = node.body[0]
+            # Process everything after the docstring
+            for item in node.body[1:]:
+                self.visit(item)
+            # Return with the docstring preserved
+            return node
+        else:
+            # No docstring, process normally
+            self.generic_visit(node)
+            return node
+        
     def visit_Constant(self, node):
         if isinstance(node.value, str):
-            new_node = ast.parse(encode_string(node.value), mode='eval').body
-            return ast.copy_location(new_node, node)
+            # Check if this node is in an expression statement directly under a function/class/module
+            # which would make it a docstring - we leave those unchanged
+            if self.in_docstring:
+                return node
+                
+            try:
+                # Simple strings - encode them
+                encoded = encode_string(node.value)
+                # Parse the encoded string into an AST expression
+                new_node = ast.parse(encoded, mode='eval').body
+                return ast.copy_location(new_node, node)
+            except Exception:
+                # If any errors, return the original
+                return node
         return node
-
+        
 class DynamicFunctionBody(ast.NodeTransformer):
     """
-    Wrap the original function body into an inner function so that any 'return'
-    statements are properly contained. This prevents "return outside function" errors.
+    Wrap the original function body with dynamic execution.
     """
     def visit_FunctionDef(self, node):
-        # Unparse the original function body.
-        original_body = astunparse.unparse(ast.Module(body=node.body, type_ignores=[]))
-        # Generate a random name for the inner function.
+        # Create a dummy opaque if-statement with randomized values (for obfuscation purposes)
+        random_condition_value = random.randint(1, 1000)
+        random_message = ''.join(random.choices(string.ascii_letters, k=random.randint(3, 10)))
+        
+        # Create a variety of dummy statements to avoid repetitive patterns
+        dummy_type = random.choice(["if", "while", "try", "assert"])
+        
+        if dummy_type == "if":
+            # Random comparison with a value that will always be false
+            op = random.choice([">", "<", "==", "!=", ">=", "<="])
+            val1 = random.randint(1, 100)
+            val2 = val1
+            if op == ">": val2 = val1 + random.randint(1, 10)
+            elif op == "<": val2 = val1 - random.randint(1, 10)
+            elif op == "==": val2 = val1 + 1
+            elif op == "!=": val2 = val1
+            elif op == ">=": val2 = val1 + random.randint(1, 10)
+            elif op == "<=": val2 = val1 - random.randint(1, 10)
+            
+            dummy_if = ast.parse(f"if ({val1} {op} {val2}):\n    print('{random_message}')").body[0]
+        elif dummy_type == "while":
+            # While with a condition that will never execute
+            dummy_if = ast.parse(f"while False:\n    print('{random_message}')").body[0]
+        elif dummy_type == "try":
+            # Try-except with an illegal operation inside that will never execute
+            dummy_if = ast.parse(f"try:\n    if False:\n        x = 1/0\nexcept ZeroDivisionError:\n    pass").body[0]
+        else:  # assert
+            # Assert with a condition that will always be true
+            dummy_if = ast.parse(f"assert True, '{random_message}'").body[0]
+        
+        # Check for docstring
+        has_docstring = (node.body and isinstance(node.body[0], ast.Expr) and 
+                         isinstance(node.body[0].value, ast.Constant) and 
+                         isinstance(node.body[0].value.value, str))
+        
+        if has_docstring:
+            # Separate the docstring from the function body
+            docstring = node.body[0]
+            func_body = node.body[1:]
+        else:
+            # No docstring, encode the whole body
+            func_body = node.body
+            
+        # Generate a random name for the inner function
         inner_func_name = random_name()
-        # Wrap the original body inside an inner function definition with proper indentation.
-        wrapped_code = f"def {inner_func_name}():\n" + "\n".join("    " + line for line in original_body.splitlines())
-        # Call the inner function.
-        wrapped_code += f"\n{inner_func_name}()"
-        # Create a dummy opaque if-statement (for obfuscation purposes).
-        dummy_if = ast.parse("if (42==43):\n    print('junk')").body[0]
-        # Create an exec() call that decodes and executes the wrapped code.
-        exec_call = ast.parse(wrap_with_exec(wrapped_code), mode='exec').body
-        # Replace the original function body with the dummy and the exec() call.
-        node.body = [dummy_if] + exec_call
+        result_var = random_name()
+            
+        # Create an inner function AST node
+        inner_func = ast.FunctionDef(
+            name=inner_func_name,
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[],
+                vararg=None,
+                kwarg=None
+            ),
+            body=func_body,
+            decorator_list=[],
+            returns=None
+        )
+        
+        # Call the inner function and assign the result
+        call_and_assign = ast.Assign(
+            targets=[ast.Name(id=result_var, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id=inner_func_name, ctx=ast.Load()),
+                args=[],
+                keywords=[]
+            )
+        )
+        
+        # Return the result
+        return_stmt = ast.Return(
+            value=ast.Name(id=result_var, ctx=ast.Load())
+        )
+        
+        # Combine all the statements
+        if has_docstring:
+            node.body = [docstring, dummy_if, inner_func, call_and_assign, return_stmt]
+        else:
+            node.body = [dummy_if, inner_func, call_and_assign, return_stmt]
+        
+        ast.fix_missing_locations(node)
         return node
-
-
 
 class InsertJunkCode(ast.NodeTransformer):
     """
-    Insert a lot of randomized, do-nothing code into the module.
+    Insert randomized, do-nothing code into the module at both the beginning and end.
     """
-    def __init__(self, num_statements=100):
+    def __init__(self, num_statements=100, pep8_compliant=True, junk_at_end=True):
         self.num_statements = num_statements
+        self.pep8_compliant = pep8_compliant
+        self.junk_at_end = junk_at_end
 
     def visit_Module(self, node):
-        junk_code = generate_random_blob_code(self.num_statements)
-        junk_ast = ast.parse(junk_code)
-        node.body = junk_ast.body + node.body
+        print(Fore.YELLOW + f"[INFO] Generating {self.num_statements} junk code statements...")
+        
+        # Calculate how many statements to put at the beginning and end
+        begin_statements = self.num_statements // 2
+        end_statements = self.num_statements - begin_statements
+        
+        # Generate junk code for the beginning
+        print(Fore.YELLOW + f"[INFO] Generating {begin_statements} statements for the beginning...")
+        begin_junk = generate_random_blob_code(begin_statements)
+        
+        # Generate junk code for the end (if enabled)
+        end_junk_ast = None
+        if self.junk_at_end:
+            print(Fore.YELLOW + f"[INFO] Generating {end_statements} statements for the end...")
+            end_junk = generate_random_blob_code(end_statements)
+            try:
+                end_junk_ast = ast.parse(end_junk)
+                print(Fore.GREEN + f"[SUCCESS] Generated {len(end_junk_ast.body)} valid junk statements for the end")
+            except SyntaxError:
+                print(Fore.YELLOW + "[WARNING] End junk code had syntax errors. Trying in smaller chunks...")
+                end_statements_list = []
+                # Try smaller chunks
+                for i in range(10):
+                    small_junk = generate_random_blob_code(end_statements // 10)
+                    try:
+                        small_junk_ast = ast.parse(small_junk)
+                        end_statements_list.extend(small_junk_ast.body)
+                    except SyntaxError:
+                        continue
+                end_junk_ast = ast.Module(body=end_statements_list, type_ignores=[])
+        
+        # Make sure the beginning junk code can be parsed
+        try:
+            begin_junk_ast = ast.parse(begin_junk)
+            print(Fore.GREEN + f"[SUCCESS] Generated {len(begin_junk_ast.body)} valid junk statements for the beginning")
+            
+            # Add junk code to the beginning of the module
+            if self.junk_at_end and end_junk_ast and end_junk_ast.body:
+                # Add junk to both beginning and end
+                node.body = begin_junk_ast.body + node.body + end_junk_ast.body
+                print(Fore.GREEN + f"[SUCCESS] Added junk code at both beginning ({len(begin_junk_ast.body)} statements) and end ({len(end_junk_ast.body)} statements)")
+            else:
+                # Add junk only to the beginning
+                node.body = begin_junk_ast.body + node.body
+                print(Fore.GREEN + f"[SUCCESS] Added junk code only at the beginning ({len(begin_junk_ast.body)} statements)")
+                
+        except SyntaxError:
+            # If there's a syntax error in the junk code, try with smaller chunks
+            print(Fore.YELLOW + "[WARNING] Beginning junk code had syntax errors. Trying with smaller chunks...")
+            begin_statements_list = []
+            
+            # Generate smaller chunks of junk code
+            for i in range(10):  # Try to create 10 smaller chunks
+                small_junk = generate_random_blob_code(begin_statements // 10)  # Split into 10 chunks
+                try:
+                    small_junk_ast = ast.parse(small_junk)
+                    begin_statements_list.extend(small_junk_ast.body)
+                    print(Fore.GREEN + f"[SUCCESS] Chunk {i+1}/10: Added {len(small_junk_ast.body)} valid statements")
+                except SyntaxError:
+                    print(Fore.YELLOW + f"[WARNING] Chunk {i+1}/10: Syntax error, skipping")
+                    continue  # Skip this chunk
+            
+            # Add the valid junk to the beginning and end of the module
+            if begin_statements_list:
+                if self.junk_at_end and end_junk_ast and end_junk_ast.body:
+                    # Add junk to both beginning and end
+                    node.body = begin_statements_list + node.body + end_junk_ast.body
+                    print(Fore.GREEN + f"[SUCCESS] Added junk code at both beginning ({len(begin_statements_list)} statements) and end ({len(end_junk_ast.body)} statements)")
+                else:
+                    # Add junk only to the beginning
+                    node.body = begin_statements_list + node.body
+                    print(Fore.GREEN + f"[SUCCESS] Added junk code only at the beginning ({len(begin_statements_list)} statements)")
+            else:
+                print(Fore.YELLOW + "[WARNING] Could not generate valid junk code for the beginning. Proceeding without it.")
+                
+                # If we at least have end junk, add that
+                if self.junk_at_end and end_junk_ast and end_junk_ast.body:
+                    node.body = node.body + end_junk_ast.body
+                    print(Fore.GREEN + f"[SUCCESS] Added junk code only at the end ({len(end_junk_ast.body)} statements)")
+        
         return node
 
-# --- Main processing function ---
-def obfuscate_file(input_file, output_file):
+def set_parent_nodes(tree):
+    """Set the parent attribute for all nodes in the tree."""
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            child.parent = node
+    return tree
+
+# --- Main processing function with enhanced encryption ---
+def obfuscate_file(input_file, output_file, encryption_layers=2, junk_statements=200, pep8_compliant=True, junk_at_end=True):
+    """
+    Obfuscate a Python file with advanced techniques.
+    
+    Args:
+        input_file (str): Path to the input Python file
+        output_file (str): Path to write the obfuscated output
+        encryption_layers (int): Number of encryption layers to apply
+        junk_statements (int): Number of junk code statements to insert
+        pep8_compliant (bool): Whether to follow PEP 8 style guidelines
+        junk_at_end (bool): Whether to add junk code at the end of the file as well
+    """
     print(Fore.CYAN + f"[INFO] Reading input file: {input_file}")
     with open(input_file, "r", encoding="utf-8") as f:
         source = f.read()
@@ -310,9 +846,17 @@ def obfuscate_file(input_file, output_file):
 
     print(Fore.YELLOW + "[INFO] Parsing source into AST...")
     tree = ast.parse(source_no_comments, filename=input_file)
+    
+    # Set parent nodes for docstring detection
+    print(Fore.YELLOW + "[INFO] Setting parent nodes for AST...")
+    set_parent_nodes(tree)
 
-    print(Fore.YELLOW + "[INFO] Inserting a lot of junk code...")
-    tree = InsertJunkCode(num_statements=200).visit(tree) # Increased the number of statements
+    print(Fore.YELLOW + f"[INFO] Inserting {junk_statements} junk code statements...")
+    tree = InsertJunkCode(
+        num_statements=junk_statements, 
+        pep8_compliant=pep8_compliant,
+        junk_at_end=junk_at_end
+    ).visit(tree)
 
     print(Fore.YELLOW + "[INFO] Obfuscating import statements...")
     tree = ObfuscateImports().visit(tree)
@@ -325,6 +869,8 @@ def obfuscate_file(input_file, output_file):
     tree = EncryptStrings().visit(tree)
     print(Fore.YELLOW + "[INFO] Wrapping function bodies with dynamic exec...")
     tree = DynamicFunctionBody().visit(tree)
+    
+    print(Fore.YELLOW + "[INFO] Fixing missing locations in AST...")
     ast.fix_missing_locations(tree)
 
     print(Fore.YELLOW + "[INFO] Unparsing AST to source code...")
@@ -333,15 +879,70 @@ def obfuscate_file(input_file, output_file):
     print(Fore.YELLOW + "[INFO] Fixing slice syntax issues...")
     obfuscated_code = fix_slice_syntax(obfuscated_code)
 
+    # Apply encryption layers if requested
+    if encryption_layers > 0:
+        print(Fore.YELLOW + f"[INFO] Applying {encryption_layers} encryption layers...")
+        for i in range(encryption_layers):
+            method = random.randint(1, 4)
+            if method == 1:
+                print(Fore.YELLOW + f"[INFO] Applying encryption method 1 (layer {i+1}/{encryption_layers})...")
+                obfuscated_code = encryption_method_1(obfuscated_code)
+            elif method == 2:
+                print(Fore.YELLOW + f"[INFO] Applying encryption method 2 (layer {i+1}/{encryption_layers})...")
+                obfuscated_code = encryption_method_2(obfuscated_code)
+            elif method == 3:
+                print(Fore.YELLOW + f"[INFO] Applying encryption method 3 (layer {i+1}/{encryption_layers})...")
+                obfuscated_code = encryption_method_3(obfuscated_code)
+            else:
+                print(Fore.YELLOW + f"[INFO] Applying encryption method 4 (layer {i+1}/{encryption_layers})...")
+                obfuscated_code = encryption_method_4(obfuscated_code)
+
+    print(Fore.YELLOW + f"[INFO] Writing obfuscated code to {output_file}...")
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(obfuscated_code)
     print(Fore.GREEN + f"[SUCCESS] Obfuscated file written to {output_file}")
+    print(Fore.GREEN + f"[SUCCESS] Obfuscation complete with {encryption_layers} encryption layers and {junk_statements} junk statements")
 
 # --- Main ---
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(Fore.RED + "Usage: python python-obfuscator.py <input_script.py> <output_script.py>")
+    print(Fore.CYAN + "Python Code Obfuscator - Advanced Edition")
+    print(Fore.CYAN + "=========================================")
+    
+    if len(sys.argv) < 3:
+        print(Fore.RED + "Usage: python python-obfuscator.py <input_script.py> <output_script.py> [encryption_layers] [junk_statements] [junk_at_end]")
         sys.exit(1)
+    
     input_file = sys.argv[1]
     output_file = sys.argv[2]
-    obfuscate_file(input_file, output_file)
+    
+    # Optional parameters
+    encryption_layers = 0
+    junk_statements = 200
+    junk_at_end = True
+    
+    if len(sys.argv) > 3:
+        try:
+            encryption_layers = int(sys.argv[3])
+            print(Fore.CYAN + f"[CONFIG] Using {encryption_layers} encryption layers")
+        except ValueError:
+            print(Fore.RED + "Error: encryption_layers must be an integer")
+            sys.exit(1)
+            
+    if len(sys.argv) > 4:
+        try:
+            junk_statements = int(sys.argv[4])
+            print(Fore.CYAN + f"[CONFIG] Using {junk_statements} junk statements")
+        except ValueError:
+            print(Fore.RED + "Error: junk_statements must be an integer")
+            sys.exit(1)
+            
+    if len(sys.argv) > 5:
+        try:
+            junk_at_end_str = sys.argv[5].lower()
+            junk_at_end = junk_at_end_str in ['true', 't', 'yes', 'y', '1']
+            print(Fore.CYAN + f"[CONFIG] Adding junk at end: {'Yes' if junk_at_end else 'No'}")
+        except:
+            print(Fore.RED + "Error: junk_at_end must be a boolean (true/false)")
+            sys.exit(1)
+    
+    obfuscate_file(input_file, output_file, encryption_layers, junk_statements, pep8_compliant=True, junk_at_end=junk_at_end)

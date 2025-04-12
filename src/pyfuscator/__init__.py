@@ -1,8 +1,5 @@
 """
-PyFuscator - Made by @spiegelin
-
-Transforms your Python code into a form that is difficult to understand and reverse engineer
-while preserving its original functionality.
+PyFuscator - A code obfuscation tool for Python and PowerShell scripts.
 """
 from colorama import init as init_colorama
 
@@ -10,5 +7,6 @@ from colorama import init as init_colorama
 init_colorama(autoreset=True)
 
 # Version info
-__version__ = '0.1.0'
-__author__ = 'spiegelin'
+__version__ = "0.2.0"
+__author__ = "@spiegelin"
+__license__ = "MIT"

@@ -17,6 +17,9 @@ from pyfuscator.core.utils import (
 # Import global variables
 from pyfuscator.core.globals import IMPORT_ALIASES, IMPORT_MAPPING
 
+# Import base transformer class
+from pyfuscator.core.transformer import Transformer
+
 __all__ = [
     # 'Obfuscator', # Removed to prevent circular imports
     # 'obfuscate_file', # Removed to prevent circular imports
@@ -29,5 +32,6 @@ __all__ = [
     'fix_slice_syntax',
     'set_parent_nodes',
     'IMPORT_ALIASES',
-    'IMPORT_MAPPING'
+    'IMPORT_MAPPING',
+    'Transformer'
 ]

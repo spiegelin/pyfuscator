@@ -4,6 +4,7 @@ Logging functionality for PyFuscator.
 from colorama import Fore, Style
 import logging
 from typing import Optional, Set
+import sys
 
 class ColoredFormatter(logging.Formatter):
     """Custom formatter to add colors to log levels."""
@@ -32,6 +33,11 @@ class Logger:
     ESSENTIAL_MESSAGES = {
         "Reading input file:",
         "Writing obfuscated code to",
+        "Auto-detected Python",
+        "Auto-detected PowerShell",
+        "Could not determine script language",
+        "Using specified script language",
+        "PowerShell obfuscation is not yet implemented"
     }
     
     def __init__(self, verbose: bool = False):
@@ -82,3 +88,44 @@ def setup_logger(verbose: bool = False) -> Logger:
     
 # Default logger instance
 logger = Logger()
+
+# Create a logger instance
+pyfuscator_logger = logging.getLogger('pyfuscator')
+
+def configure_logger(verbose: bool = False) -> logging.Logger:
+    """Configure the logger with appropriate handlers and formatters.
+    
+    Args:
+        verbose: Whether to enable verbose logging
+        
+    Returns:
+        The configured logger
+    """
+    # Clear any existing handlers
+    pyfuscator_logger.handlers = []
+    
+    # Set logging level based on verbosity
+    if verbose:
+        pyfuscator_logger.setLevel(logging.DEBUG)
+    else:
+        pyfuscator_logger.setLevel(logging.INFO)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    
+    # Create formatters
+    if verbose:
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    else:
+        formatter = logging.Formatter('%(levelname)s: %(message)s')
+    
+    # Add formatter to console handler
+    console_handler.setFormatter(formatter)
+    
+    # Add handler to logger
+    pyfuscator_logger.addHandler(console_handler)
+    
+    return pyfuscator_logger
+
+# Export the logger instance
+__all__ = ['logger', 'configure_logger', 'setup_logger']

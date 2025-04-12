@@ -339,3 +339,18 @@ def set_parent_nodes(tree: ast.AST) -> ast.AST:
         for child in ast.iter_child_nodes(node):
             child.parent = node
     return tree 
+
+
+def generate_random_comment(self) -> str:
+    """Generate a random, nonsensical comment."""
+    # Determine the number of words in the phrase
+    num_words = random.randint(2, 5)
+    words = []
+    for _ in range(num_words):
+        # Determine the length of each word
+        word_length = random.randint(3, 10)
+        # Generate a random word consisting of lowercase letters
+        word = ''.join(random.choices(string.ascii_lowercase, k=word_length))
+        words.append(word)
+    # Combine the words into a phrase
+    return ' '.join(words)

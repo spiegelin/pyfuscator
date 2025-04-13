@@ -32,12 +32,11 @@ class Base64Encoder(Transformer):
         }
         
         # Pattern to match script blocks and commands
-        # Modified to avoid matching for loops and if statements that contain variables
         self.script_block_pattern = re.compile(r'({[^{}]*(?:{[^{}]*}[^{}]*)*})')
         self.command_pattern = re.compile(r'((?:Get|Set|New|Remove|Add|Clear|Invoke|Start|Stop)-\w+(?:\s+-\w+\s+[^;]+)?)')
         
-        # Patterns to identify control structures (if, for, foreach, switch)
-        self.control_structure_pattern = re.compile(r'(for|foreach|if|switch|while)\s*\(.+?\)\s*{')
+        # Pattern to identify control structures (if, for, foreach, switch, while)
+        self.control_structure_pattern = re.compile(r'\b(if|switch|for|foreach|while|do|try|catch|finally)\b\s*(?:\([^)]*\))?\s*{')
     
     def transform(self, content: str) -> str:
         """
@@ -58,7 +57,7 @@ class Base64Encoder(Transformer):
         
         transformed = content
         
-        # Option 1: Encode script blocks
+        # Option 1: Encode script blocks (but avoid control structures and blocks with variables)
         if self.encode_blocks:
             transformed = self._encode_blocks(transformed)
         
@@ -76,7 +75,7 @@ class Base64Encoder(Transformer):
     
     def _encode_blocks(self, content: str) -> str:
         """
-        Encode script blocks within the content.
+        Encode simple script blocks within the content, avoiding control structures and variables.
         
         Args:
             content: The script content
@@ -90,9 +89,18 @@ class Base64Encoder(Transformer):
         matches = []
         for match in self.script_block_pattern.finditer(transformed):
             block_content = match.group(1)
+            block_start, block_end = match.span(0)
             
             # Skip empty blocks or very small blocks
             if len(block_content.strip()) <= 20:
+                continue
+            
+            # Skip if block contains variables
+            if self._contains_variables(block_content):
+                continue
+                
+            # Skip if block is part of a control structure or contains one
+            if self._is_control_structure(transformed, block_start) or self._contains_control_structure(block_content):
                 continue
                 
             matches.append(match)
@@ -107,11 +115,8 @@ class Base64Encoder(Transformer):
             for match in sorted(blocks_to_encode, key=lambda m: m.start(), reverse=True):
                 block_content = match.group(1)
                 
-                # Randomly choose encoding method
-                if random.random() < 0.3:
-                    encoded_block = self._encode_compressed(block_content)
-                else:
-                    encoded_block = self._encode_base64(block_content)
+                # Encode the block
+                encoded_block = self._encode_base64(block_content)
                 
                 # Replace the block with its encoded version
                 start, end = match.span(0)  # Include the curly braces
@@ -122,6 +127,40 @@ class Base64Encoder(Transformer):
             logger.info(f"Encoded {self.stats['blocks_encoded']} script blocks using Base64")
         
         return transformed
+    
+    def _is_control_structure(self, content: str, position: int) -> bool:
+        """
+        Check if the block at the given position is part of a control structure.
+        
+        Args:
+            content: The script content
+            position: The position of the block start
+            
+        Returns:
+            True if it's a control structure, False otherwise
+        """
+        # Check the preceding characters for control structure keywords with a larger window
+        # This helps catch for loop patterns that might be spread across multiple lines
+        prefix = content[max(0, position-100):position].strip()
+        
+        # Specifically check for "for" control structures which might have specific formats
+        for_pattern = re.compile(r'\bfor\s*\(.*\$.*\).*{', re.DOTALL)
+        if for_pattern.search(prefix):
+            return True
+        
+        return bool(self.control_structure_pattern.search(prefix))
+    
+    def _contains_control_structure(self, content: str) -> bool:
+        """
+        Check if the content contains control structures.
+        
+        Args:
+            content: Script content to check
+            
+        Returns:
+            True if control structures found, False otherwise
+        """
+        return bool(self.control_structure_pattern.search(content))
     
     def _contains_variables(self, content: str) -> bool:
         """
@@ -197,9 +236,6 @@ class Base64Encoder(Transformer):
         # The "&" operator forces the execution of the script block.
         executor = "& { Invoke-Expression ([System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('" + encoded + "'))) }"
         return executor
-        
-        # Wrap in braces to make it a block with proper execution
-        return "{ " + executor + " }"
     
     def _encode_to_base64(self, script: str) -> str:
         """
@@ -213,33 +249,6 @@ class Base64Encoder(Transformer):
         """
         script_bytes = script.encode('utf-16le')
         return base64.b64encode(script_bytes).decode('ascii')
-    
-    def _encode_compressed(self, script: str) -> str:
-        """
-        Encode a script segment using Base64 with a more complex decoder.
-        
-        Args:
-            script: Script content to encode
-            
-        Returns:
-            PowerShell command with a multi-step decoder for the encoded script
-        """
-        encoded = self._encode_to_base64(script)
-        
-        # Build a more complex multiline decoder
-        var_name = f"$enc{random.randint(1000, 9999)}"
-        decoder = (
-            f"{var_name} = '{encoded}';\n"
-            f"$data = [System.Convert]::FromBase64String({var_name});\n"
-            "$ms = New-Object System.IO.MemoryStream;\n"
-            "$ms.Write($data, 0, $data.Length);\n"
-            "$ms.Seek(0,0) | Out-Null;\n"
-            "$sr = New-Object System.IO.StreamReader($ms, [System.Text.Encoding]::Unicode);\n"
-            "$decoded = $sr.ReadToEnd();\n"
-            "Invoke-Expression $decoded"
-        )
-        
-        return "{\n" + decoder + "\n}"
     
     def _encode_full_script(self, script: str) -> str:
         """

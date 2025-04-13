@@ -1,13 +1,25 @@
 """
-AST transformers for Python code obfuscation.
+Transformers for code obfuscation.
 """
-from pyfuscator.transformers.imports import ImportTracker, ObfuscateImports, ReplaceImportNames
-from pyfuscator.transformers.identifiers import RenameIdentifiers, ImportRenamer
-from pyfuscator.transformers.strings import EncryptStrings
-from pyfuscator.transformers.functions import DynamicFunctionBody
-from pyfuscator.transformers.junk import InsertJunkCode
+# Import from Python transformers
+from pyfuscator.transformers.python import (
+    ImportTracker, ObfuscateImports, ReplaceImportNames,
+    RenameIdentifiers, ImportRenamer, EncryptStrings,
+    DynamicFunctionBody, InsertJunkCode
+)
+
+# Import from PowerShell transformers
+from pyfuscator.transformers.powershell import (
+    RenameIdentifiers as PSRenameIdentifiers,
+    ObfuscateStrings, EncodeCommands, CommandTokenizer,
+    InsertJunkCode as PSInsertJunkCode, UseDotNetMethods,
+    SecureStringTransformer, AlternateDataStreams,
+    RemoveComments, LowerEntropy, Base64Encoder,
+    PowerShellScriptEncryptor, PowerShellObfuscator
+)
 
 __all__ = [
+    # Python transformers
     'ImportTracker',
     'ObfuscateImports',
     'ReplaceImportNames',
@@ -16,4 +28,19 @@ __all__ = [
     'EncryptStrings',
     'DynamicFunctionBody',
     'InsertJunkCode',
+    
+    # PowerShell transformers
+    'PSRenameIdentifiers',
+    'ObfuscateStrings',
+    'EncodeCommands',
+    'CommandTokenizer',
+    'PSInsertJunkCode',
+    'UseDotNetMethods',
+    'SecureStringTransformer',
+    'AlternateDataStreams',
+    'RemoveComments',
+    'LowerEntropy',
+    'Base64Encoder',
+    'PowerShellScriptEncryptor',
+    'PowerShellObfuscator',
 ]

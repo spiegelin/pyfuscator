@@ -54,7 +54,7 @@ def _write_file(file_path: str, content: str) -> None:
         content: Content to write to the file
     """
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
+        with open(file_path, "w", encoding="utf-8", errors="replace") as f:
             f.write(content)
     except Exception as e:
         logger.error(f"Error writing file {file_path}: {str(e)}")
@@ -177,6 +177,10 @@ def python_command(
     global logger
     configure_logger(verbose=verbose)
     logger = setup_logger(verbose=verbose)
+
+    # Print banner
+    console.print(BANNER)
+    console.print("")
     
     # Notify about first-time execution performance
     console.print("[yellow]Note:[/] First-time execution might take longer due to module initialization and AST processing.\n")
@@ -285,16 +289,15 @@ def powershell_command(
     junk_code: int = typer.Option(0, "-j", "--junk-code", help="Insert random junk statements"),
     tokenize_commands: bool = typer.Option(False, "-c", "--tokenize-commands", help="Tokenize and obfuscate PowerShell commands"),
     rename_identifiers: bool = typer.Option(False, "-i", "--identifier-rename", help="Rename variables and function names"),
-    dotnet_methods: bool = typer.Option(False, "-d", "--dotnet-methods", help="Use .NET methods for obfuscation"),
-    secure_strings: bool = typer.Option(False, "-s", "--secure-strings", help="Use SecureString for string obfuscation"),
+    dotnet_methods: bool = typer.Option(False, "-d", "--dotnet-methods", help="(Experimental) Use .NET methods for obfuscation"),
+    secure_strings: bool = typer.Option(False, "-s", "--secure-strings", help="(Experimental) Use SecureString for string obfuscation"),
     string_divide: bool = typer.Option(False, "-sd", "--string-divide", help="Divide strings into concatenated parts"),
     script_encrypt: bool = typer.Option(False, "-e", "--encrypt", help="Encrypt the entire script with SecureString"),
-    base64_encode: bool = typer.Option(False, "-b", "--base64", help="Encode script blocks with Base64"),
+    base64: bool = typer.Option(False, "-b", "--base64", help="Encode individual commands with Base64"),
     base64_full: bool = typer.Option(False, "--base64-full", help="Encode the entire script with Base64"),
-    base64_commands: bool = typer.Option(False, "--base64-commands", help="Encode individual commands with Base64"),
-    ads: bool = typer.Option(False, "--ads", help="Store scripts in Alternate Data Streams (Windows only)"),
+    ads: bool = typer.Option(False, "--ads", help="(Experimental) Store scripts in Alternate Data Streams (Windows only)"),
     lower_entropy: bool = typer.Option(False, "-l", "--lower-entropy", help="Apply entropy reduction techniques"),
-    all_obfuscations: bool = typer.Option(False, "-a", "--all", help="Apply all PowerShell obfuscation techniques except full script encryption"),
+    all_obfuscations: bool = typer.Option(False, "-a", "--all", help="Apply the following techniques in this order: comment removal, identifier renaming, junk code insertion (200), lower entropy, tokenization, string division, Base64 encode"),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show detailed logs during obfuscation"),
     help: bool = typer.Option(False, "--help", "-h", help="Show PowerShell obfuscation options.", callback=custom_help_callback, is_eager=True),
 ):
@@ -303,6 +306,10 @@ def powershell_command(
     global logger
     configure_logger(verbose=verbose)
     logger = setup_logger(verbose=verbose)
+
+    # Print banner
+    console.print(BANNER)
+    console.print("")
     
     # Notify about first-time execution performance
     console.print("[yellow]Note:[/] First-time execution might take longer due to module initialization and AST processing.\n")
@@ -330,18 +337,16 @@ def powershell_command(
             logger.info(f"SecureString obfuscation enabled")
         if string_divide:
             logger.info(f"String division enabled")
-        if base64_encode:
-            logger.info(f"Base64 encoding enabled")
-            if base64_full:
-                logger.info(f"Full script Base64 encoding enabled")
-            if base64_commands:
-                logger.info(f"Command Base64 encoding enabled")
+        if base64:
+            logger.info(f"Base64 command encoding enabled")
+        if base64_full:
+            logger.info(f"Full script Base64 encoding enabled")
         if script_encrypt:
             logger.info(f"Full script encryption enabled")
         if lower_entropy:
             logger.info(f"Lower entropy transformation enabled")
         if all_obfuscations:
-            logger.info(f"All obfuscation techniques enabled (excluding full script encryption)")
+            logger.info(f"All specified obfuscation techniques enabled in exact sequence")
     
     # Execute the obfuscation
     try:
@@ -353,19 +358,27 @@ def powershell_command(
             input_file=input_file,
             output_file=output_file,
             language="powershell",
-            remove_comments=remove_comments,
+            # Order is important as per the requirement - EXACTLY this sequence:
+            # 1. Comment removal (-r)
+            remove_comments=remove_comments or all_obfuscations,
+            # 2. Identifier renaming (-i)
             rename_identifiers=rename_identifiers or all_obfuscations,
+            # 3. Junk code insertion (-j 200)
             junk_code=junk_code or (200 if all_obfuscations else 0),
+            # 4. Lower entropy (-l)
+            lower_entropy=lower_entropy or all_obfuscations,
+            # 5. Tokenization (-c)
             tokenize_commands=tokenize_commands or all_obfuscations,
-            dotnet_methods=dotnet_methods or all_obfuscations,
-            secure_strings=secure_strings or all_obfuscations,
+            # 6. String division (-sd)
             string_divide=string_divide or all_obfuscations,
-            base64_encode=base64_encode or all_obfuscations,
-            base64_full=base64_full or all_obfuscations,
-            base64_commands=base64_commands or all_obfuscations,
+            # 7. Base64 encode (-b)
+            base64_commands=base64 or all_obfuscations,
+            # Excluded from all_obfuscations:
+            secure_strings=secure_strings,
+            dotnet_methods=dotnet_methods,
+            base64_full=base64_full,
             script_encrypt=script_encrypt,
             use_ads=ads,
-            lower_entropy=lower_entropy or all_obfuscations,
             verbose=verbose
         )
         
@@ -386,7 +399,7 @@ def powershell_command(
         # Summarize techniques used
         tech_applied = []
         if all_obfuscations:
-            tech_applied.append("all techniques (excluding script encryption)")
+            tech_applied.append("standard obfuscation sequence (in order: comment removal, identifier renaming, junk code, lower entropy, tokenization, string division, base64)")
         else:
             if remove_comments:
                 tech_applied.append("comment removal")
@@ -402,8 +415,8 @@ def powershell_command(
                 tech_applied.append("SecureString obfuscation")
             if string_divide:
                 tech_applied.append("string division")
-            if base64_encode:
-                tech_applied.append("Base64 encoding")
+            if base64:
+                tech_applied.append("Base64 command encoding")
             if script_encrypt:
                 tech_applied.append("script encryption")
             if lower_entropy:

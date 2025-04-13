@@ -6,7 +6,7 @@ from pyfuscator.transformers.powershell.strings import ObfuscateStrings
 from pyfuscator.transformers.powershell.encoding import EncodeCommands
 from pyfuscator.transformers.powershell.concat import CommandTokenizer
 from pyfuscator.transformers.powershell.junk import InsertJunkCode
-from pyfuscator.transformers.powershell.securestring import ObfuscateWithSecureString
+from pyfuscator.transformers.powershell.securestring import SecureStringTransformer
 from pyfuscator.transformers.powershell.dotnet import UseDotNetMethods
 from pyfuscator.transformers.powershell.ads import AlternateDataStreams
 from pyfuscator.transformers.powershell.remove_comments import RemoveComments
@@ -22,7 +22,7 @@ __all__ = [
     'CommandTokenizer',
     'InsertJunkCode',
     'UseDotNetMethods',
-    'ObfuscateWithSecureString',
+    'SecureStringTransformer',
     'AlternateDataStreams',
     'RemoveComments',
     'LowerEntropy',

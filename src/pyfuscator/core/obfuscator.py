@@ -18,13 +18,13 @@ from pyfuscator.encryption.methods import (
     encryption_method_3, encryption_method_4
 )
 from pyfuscator.log_utils import logger, setup_logger
-from pyfuscator.transformers.imports import (
+from pyfuscator.transformers.python.imports import (
     ImportTracker, ObfuscateImports, ReplaceImportNames
 )
-from pyfuscator.transformers.identifiers import RenameIdentifiers, ImportRenamer
-from pyfuscator.transformers.strings import EncryptStrings
-from pyfuscator.transformers.functions import DynamicFunctionBody
-from pyfuscator.transformers.junk import InsertJunkCode
+from pyfuscator.transformers.python.identifiers import RenameIdentifiers, ImportRenamer
+from pyfuscator.transformers.python.strings import EncryptStrings
+from pyfuscator.transformers.python.functions import DynamicFunctionBody
+from pyfuscator.transformers.python.junk import InsertJunkCode
 from pyfuscator.transformers.powershell.coordinator import PowerShellObfuscator
 
 class Obfuscator:
@@ -359,7 +359,8 @@ def obfuscate_file(input_file: str, output_file: str, **kwargs) -> Dict[str, Any
         
         # Write the result
         try:
-            with open(output_file, 'w', encoding='utf-8') as f:
+            # Use UTF-8 with error handling to prevent charmap errors
+            with open(output_file, 'w', encoding='utf-8', errors='replace') as f:
                 f.write(result)
         except Exception as e:
             obfuscator.logger.error(f"Error writing to {output_file}: {str(e)}")

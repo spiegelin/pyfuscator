@@ -1,10 +1,24 @@
 # PyFuscator
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.6%2B-blue" alt="Python 3.6+"/>
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="License: MIT"/>
+  <img src="https://img.shields.io/badge/Status-Active-brightgreen" alt="Status: Active"/>
+</p>
+
+```
+             __                  _           
+  _ __ _  _ / _|_  _ ___ __ __ _| |_ ___ _ _ 
+ | '_ \ || |  _| || (_-</ _/ _` |  _/ _ \ '_|
+ | .__/\_, |_|  \_,_/__/\__\__,_|\__\___/_|  
+ |_|   |__/                                  
+```
+
 A powerful code obfuscation tool that transforms your source code into a difficult-to-understand form while preserving its full functionality.
 
 ## Overview
 
-PyFuscator is designed for security professionals, Red Teamers, and penetration testers who need to bypass detection mechanisms and protect their operational code. The tool supports multiple programming languages and applies common obfuscation techniques to evade security controls while maintaining full code functionality.
+PyFuscator is designed for security professionals, Red Teamers, and penetration testers who need to bypass detection mechanisms and protect their operational code. The tool supports both Python and PowerShell languages and applies common obfuscation techniques to evade security controls while maintaining full code functionality.
 
 ## Security Professional Use Cases
 
@@ -40,13 +54,26 @@ PyFuscator is designed for security professionals, Red Teamers, and penetration 
 ## Installation
 
 ```bash
-# Install from PyPI
+# Install from PyPI (currently not supported)
 pip install pyfuscator
 
 # Or install from source
-git clone https://github.com/user/pyfuscator.git
+git clone https://github.com/spiegelin/pyfuscator.git
 cd pyfuscator
 pip install .
+```
+
+### Running Without Installation
+
+If you don't want to install the package, you can use the included wrapper script:
+
+```bash
+# Clone the repository
+git clone https://github.com/spiegelin/pyfuscator.git
+cd pyfuscator
+
+# Run directly using the wrapper script
+python pyfuscator.py [options] input_file output_file
 ```
 
 ## Usage
@@ -99,11 +126,35 @@ Options:
 | `-i, --identifier-rename` | Rename variables and functions |
 | `-d, --dotnet-methods` | Use .NET methods for obfuscation |
 | `-s, --secure-strings` | Use SecureString for string obfuscation |
-| `-e, --encrypt N` | Apply N layers of encoding (0-5) |
-| `-a, --ads` | Store scripts in Alternate Data Streams (Windows only) |
-| `--all` | Apply all PowerShell obfuscation techniques |
+| `-sd, --string-divide` | Divide strings into concatenated parts |
+| `-e, --encrypt` | Encrypt the entire script with SecureString |
+| `-b, --base64` | Encode individual commands with Base64 |
+| `--base64-full` | Encode the entire script with Base64 |
+| `--ads` | Store scripts in Alternate Data Streams (Windows only) |
+| `-l, --lower-entropy` | Apply entropy reduction techniques |
+| `-a, --all` | Apply all PowerShell obfuscation techniques except full script encryption |
 | `-v, --verbose` | Show detailed logs and statistics during obfuscation |
 
+## Examples
+
+Here are some examples of PyFuscator usage:
+
+```bash
+# Basic Python obfuscation with identifier renaming and 2 encryption layers
+pyfuscator python -i -e 2 input.py output.py
+
+# Maximum Python obfuscation with all features enabled
+pyfuscator python -a -e 3 input.py output.py
+
+# Basic PowerShell obfuscation with identifier renaming
+pyfuscator powershell -i input.ps1 output.ps1
+
+# Maximum PowerShell obfuscation with all techniques 
+pyfuscator powershell -a input.ps1 output.ps1
+
+# Apply verbose logging for detailed information
+pyfuscator python -v -a input.py output.py
+```
 
 ## Example Transformations
 
@@ -123,7 +174,6 @@ print("The result is:", result)
 
 Obfuscated code (with all techniques, except encryption):
 ```python
-
 if False:
     oOxKjDI4 = 91
 if False:
@@ -191,9 +241,7 @@ if ($r08HF -le 67) { $asfoo = $true }
 (& {$p0='Inv';$p1='oke-';$p2='Expr';$p3='essi';$p4='on';$p0+$p1+$p2+$p3+$p4}) "DafpOwV0"
 ```
 
-## How It Works
-
-PyFuscator applies a series of transformations to your code:
+## Obfuscation Process
 
 1. **Comment Removal**: Strips all comments and docstrings from the code.
 2. **Junk Code Insertion**: Adds random, non-functional code to obscure the original logic.
@@ -208,7 +256,7 @@ PyFuscator applies a series of transformations to your code:
 ## Important Notes
 
 1. The obfuscated code will run slower than the original due to the added complexity
-2. Obfuscated code looks suspicious
+2. Obfuscated code looks suspicious and may be flagged by security tools
 3. Comment removal is applied by default but can also be explicitly specified with `-r`
 4. Excessive encryption layers can significantly increase code size and runtime
 
@@ -240,8 +288,16 @@ This tool is intended for legitimate security professionals conducting authorize
 
 ## License
 
-MIT License
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Contact
+
+If you have any questions or feedback, please open an issue on GitHub.
+
+---
+
+If you find this project useful, please star it on GitHub!

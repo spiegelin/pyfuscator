@@ -9,7 +9,7 @@ from typing import Match, Dict
 from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger
 
-class ObfuscateWithSecureString:
+class SecureStringTransformer:
     """Transformer that obfuscates strings in PowerShell scripts using SecureString."""
     
     def __init__(self, use_key: bool = True):

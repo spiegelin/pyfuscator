@@ -66,6 +66,10 @@ class ObfuscateStrings(Transformer):
             # Skip strings containing PowerShell variables ($var, ${var}, etc.)
             if self._contains_variables(string_content):
                 continue
+
+            # Skip strings in PowerShell attribute arguments like ValidateSet
+            if self._is_attribute_argument(transformed, match.start()):
+                continue
                 
             # Apply obfuscation with specified probability
             if random.random() > self.obfuscation_probability:
@@ -126,6 +130,45 @@ class ObfuscateStrings(Transformer):
             return bool(re.search(var_pattern, string_content))
         return False
     
+    def _is_attribute_argument(self, content: str, pos: int) -> bool:
+        """
+        Check if a string at the given position is within a PowerShell attribute argument.
+        
+        Args:
+            content: The PowerShell script content
+            pos: Position of the string in the content
+            
+        Returns:
+            True if the string is within an attribute argument, False otherwise
+        """
+        # Look for attribute patterns before the string position
+        # This covers cases like [ValidateSet("Low", "Medium", "High")]
+        prefix = content[max(0, pos-100):pos]
+        
+        # Check for common attribute patterns
+        attribute_patterns = [
+            r'\[ValidateSet\s*\(',          # ValidateSet attribute
+            r'\[Parameter\s*\(',            # Parameter attribute
+            r'\[ValidatePattern\s*\(',      # ValidatePattern attribute
+            r'\[Alias\s*\(',                # Alias attribute
+            r'\[ValidateRange\s*\(',        # ValidateRange attribute
+            r'\[ValidateScript\s*\(',       # ValidateScript attribute
+            r'\[ValidateNotNull',           # ValidateNotNull attribute
+            r'\[ValidateNotNullOrEmpty'     # ValidateNotNullOrEmpty attribute
+        ]
+        
+        # Check if any attribute pattern precedes the string
+        for pattern in attribute_patterns:
+            if re.search(pattern, prefix):
+                # Additional check for proper attribute argument context
+                # Count parentheses to ensure we're inside an attribute argument list
+                open_parens = prefix.count('(')
+                close_parens = prefix.count(')')
+                if open_parens > close_parens:  # We're inside an attribute argument
+                    return True
+        
+        return False
+    
     def _obfuscate_string(self, string_content: str) -> str:
         """
         Obfuscate a string using various techniques.
@@ -141,8 +184,10 @@ class ObfuscateStrings(Transformer):
         inner_content = string_content[1:-1]
         
         # Choose an obfuscation technique
+        # Comment out format operator since it breaks the script when used with other techniques, 
+        # too much effort to fix it, will do it later (probably never)
         techniques = [
-            self._format_operator_technique,
+            #self._format_operator_technique,
             self._concatenation_technique,
             self._char_array_technique,
             self._hex_encode_technique,

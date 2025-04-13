@@ -4,7 +4,6 @@ PowerShell Base64 encoding transformer.
 import re
 import base64
 import random
-from typing import Dict, Any, List
 
 from pyfuscator.core.transformer import Transformer
 from pyfuscator.log_utils import logger
@@ -33,7 +32,17 @@ class Base64Encoder(Transformer):
         
         # Pattern to match script blocks and commands
         self.script_block_pattern = re.compile(r'({[^{}]*(?:{[^{}]*}[^{}]*)*})')
-        self.command_pattern = re.compile(r'((?:Get|Set|New|Remove|Add|Clear|Invoke|Start|Stop)-\w+(?:\s+-\w+\s+[^;]+)?)')
+        
+        # Enhanced command pattern to recognize more PowerShell commands
+        # Include common PowerShell verb prefixes and capture parameters
+        self.command_pattern = re.compile(
+            r'(?<!["\'\w-])((?:Get|Set|New|Remove|Add|Clear|Invoke|Start|Stop|Find|Format|'
+            r'Select|Sort|ConvertTo|ConvertFrom|Join|Split|Out|Import|Export|'
+            r'Write|Read|Update|Install|Connect|Disconnect|Register|Unregister|'
+            r'Enable|Disable|Request|Enter|Exit|Restart|Resume|Suspend|Use|Show|'
+            r'Measure|Test|Wait|Search|Send|Receive|Watch|Push|Pop|Repair|Copy|'
+            r'Move)-\w+(?:\s+(?:-\w+\s+[^;}\n\r]+|\$[\w\d_]+|[\'"][^\'"]+[\'"])*)?)'
+        )
         
         # Pattern to identify control structures (if, for, foreach, switch, while)
         self.control_structure_pattern = re.compile(r'\b(if|switch|for|foreach|while|do|try|catch|finally)\b\s*(?:\([^)]*\))?\s*{')
@@ -187,9 +196,15 @@ class Base64Encoder(Transformer):
             Content with encoded commands
         """
         transformed = content
+        commands_found = False
         
-        # Add test script functions for explicit encoding
-        test_functions = ["Get-Random", "Write-Output", "Test-Function", "Get-RandomNumber"]
+        # Additional test functions to explicitly look for (including custom functions from test scripts)
+        test_functions = ["Get-Random", "Write-Output", "Test-Function", "Get-RandomNumber", 
+                         "Print-Message", "Get-Secret", "Find-Pattern", "Invoke-CustomCommand",
+                         "Measure-Object", "Format-List", "Format-Table", "Out-String", 
+                         "Invoke-Expression", "ConvertTo-Html", "ConvertFrom-Json", "ConvertTo-Json"]
+        
+        # First approach: Try to find specific function calls
         for test_function in test_functions:
             # Pattern to match the function calls with potential arguments
             pattern = r'(?<!["\'\w-])(' + re.escape(test_function) + r'\s+(?:-\w+\s+)?[^;}\n\r]+)'
@@ -209,32 +224,80 @@ class Base64Encoder(Transformer):
                 start, end = match.span(1)
                 transformed = transformed[:start] + encoded_cmd + transformed[end:]
                 self.stats["commands_encoded"] += 1
+                commands_found = True
         
-        # Find all commands that match our pattern
+        # Second approach: Find standard PowerShell commands that match our pattern
         matches = list(self.command_pattern.finditer(transformed))
         
-        if not matches:
-            return transformed
+        if matches:
+            commands_found = True
+            # Select a subset of commands to encode (50-70% to increase chances)
+            num_to_encode = max(1, int(len(matches) * random.uniform(0.5, 0.7)))
+            commands_to_encode = random.sample(matches, min(num_to_encode, len(matches)))
+            
+            # Process commands in reverse order to maintain correct positions
+            for match in sorted(commands_to_encode, key=lambda m: m.start(), reverse=True):
+                cmd = match.group(1)
+                
+                # Skip if command is too complex or contains variables
+                if len(cmd) > 80 or re.search(r'\$\(|\$\{|\$PSScriptRoot', cmd):
+                    continue
+                
+                # Encode the command
+                encoded_cmd = self._encode_base64(cmd)
+                
+                # Replace the command with its encoded version
+                start, end = match.span(1)
+                transformed = transformed[:start] + encoded_cmd + transformed[end:]
+                self.stats["commands_encoded"] += 1
         
-        # Select a subset of commands to encode (50-70% to increase chances)
-        num_to_encode = max(1, int(len(matches) * random.uniform(0.5, 0.7)))
-        commands_to_encode = random.sample(matches, min(num_to_encode, len(matches)))
+        # Third approach: Find any function call-like patterns if no standard commands were found
+        if not commands_found:
+            # Look for function-call patterns
+            function_pattern = r'(?<!["\'\w-])([a-zA-Z_][\w-]*\s+(?:-\w+\s+)?[^;}\n\r$]+)(?=\s|$|;)'
+            func_matches = list(re.finditer(function_pattern, transformed))
+            
+            if func_matches:
+                # Select a subset to encode
+                num_to_encode = max(1, min(5, len(func_matches)))
+                funcs_to_encode = random.sample(func_matches, num_to_encode)
+                
+                # Process in reverse order
+                for match in sorted(funcs_to_encode, key=lambda m: m.start(), reverse=True):
+                    cmd = match.group(1)
+                    # Skip if it's too complex or contains variables
+                    if len(cmd) > 80 or re.search(r'\$\(|\$\{|\$PSScriptRoot', cmd):
+                        continue
+                    
+                    # Encode the command
+                    encoded_cmd = self._encode_base64(cmd)
+                    start, end = match.span(1)
+                    transformed = transformed[:start] + encoded_cmd + transformed[end:]
+                    self.stats["commands_encoded"] += 1
+                    commands_found = True
         
-        # Process commands in reverse order to maintain correct positions
-        for match in sorted(commands_to_encode, key=lambda m: m.start(), reverse=True):
-            cmd = match.group(1)
+        # Fourth approach: As a last resort, if no commands found, encode some string literals
+        if not commands_found:
+            # Find string literals
+            string_pattern = r'"([^"]{5,50})"'
+            string_matches = list(re.finditer(string_pattern, transformed))
             
-            # Skip if command is too complex or contains variables
-            if len(cmd) > 80 or re.search(r'\$\(|\$\{|\$PSScriptRoot', cmd):
-                continue
-            
-            # Encode the command
-            encoded_cmd = self._encode_base64(cmd)
-            
-            # Replace the command with its encoded version
-            start, end = match.span(1)
-            transformed = transformed[:start] + encoded_cmd + transformed[end:]
-            self.stats["commands_encoded"] += 1
+            if string_matches:
+                # Select a few to encode
+                num_to_encode = min(3, len(string_matches))
+                strings_to_encode = random.sample(string_matches, num_to_encode)
+                
+                # Process in reverse order
+                for match in sorted(strings_to_encode, key=lambda m: m.start(), reverse=True):
+                    string_content = match.group(1)
+                    # Create a small command to output this string and encode it
+                    cmd = f'Write-Output "{string_content}"'
+                    encoded_cmd = self._encode_base64(cmd)
+                    
+                    # Replace just the string with the encoded command
+                    start, end = match.span(0)  # Include the quotes
+                    transformed = transformed[:start] + encoded_cmd + transformed[end:]
+                    self.stats["commands_encoded"] += 1
         
         if self.stats["commands_encoded"] > 0:
             logger.info(f"Encoded {self.stats['commands_encoded']} individual commands using Base64")

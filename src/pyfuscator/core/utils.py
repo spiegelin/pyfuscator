@@ -6,7 +6,8 @@ import base64
 import random
 import string
 import re
-from typing import Optional, List, Dict, Any, Set, Callable, Union, Tuple
+import io
+import tokenize
 
 def random_name(length: int = 8) -> str:
     """
@@ -109,7 +110,7 @@ def generate_random_statement() -> str:
     # Maximum number of attempts to generate valid code
     max_attempts = 3
     
-    for attempt in range(max_attempts):
+    for _ in range(max_attempts):
         try:
             if statement_type == "assignment":
                 var_name = random_name()
@@ -266,9 +267,6 @@ def remove_comments(source: str) -> str:
     Returns:
         Source code with comments and docstrings removed
     """
-    import io
-    import tokenize
-    
     result = []
     io_obj = io.StringIO(source)
     prev_toktype = tokenize.INDENT

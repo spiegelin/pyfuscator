@@ -3,8 +3,7 @@ AST transformers for identifier renaming.
 """
 import ast
 import builtins
-import re
-from typing import Dict, Set, Any, Optional
+from typing import Dict, Set, Optional
 
 from pyfuscator.constants import PYTHON_KEYWORDS
 from pyfuscator.core.utils import random_name
@@ -52,6 +51,8 @@ class RenameIdentifiers(ast.NodeTransformer):
             'Person', 'Student', 'math', 'os', 'datetime', 'timedelta', 'path', 'Path'
         }
         self.reserved.update(self.common_names)
+        self.current_function = None
+        self.current_class = None
         
         # Track all imports if import-aware mode is enabled
         if import_aware:

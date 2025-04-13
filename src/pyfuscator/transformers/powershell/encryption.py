@@ -1,98 +1,106 @@
 """
-PowerShell encryption transformer.
+PowerShell encryption transformers.
 
-This transformer encrypts PowerShell scripts using PowerShell's SecureString capabilities,
-with a fixed key for later decryption.
+This module provides transformers for encrypting PowerShell scripts.
 """
-import random
-import base64
-import subprocess
-import platform
-import tempfile
 import os
+import base64
+import random
 import string
-from typing import Dict, Any, Optional, Tuple
+import subprocess
+import tempfile
+from typing import Dict, Any
 
 from pyfuscator.core.transformer import Transformer
-from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger
 
+def random_name(length: int = 8) -> str:
+    """Generate a random name for variables."""
+    return ''.join(random.choice(string.ascii_lowercase) for _ in range(length))
+
 class EncryptScript(Transformer):
-    """Transformer that encrypts PowerShell scripts using SecureString with a fixed key."""
+    """Transformer that encrypts PowerShell scripts."""
     
     def __init__(self, key_size: int = 32):
         """
         Initialize the transformer.
         
         Args:
-            key_size: Size of the encryption key (default: 32 bytes for 256-bit key)
+            key_size: Size of the encryption key
         """
         super().__init__()
         self.key_size = key_size
-        self.ps_cmd = "powershell" if platform.system() == "Windows" else "pwsh"
+        
+        # Check if PowerShell is available
+        self.ps_cmd = 'powershell' if os.name == 'nt' else 'pwsh'
+        try:
+            subprocess.run([self.ps_cmd, '-Command', 'echo "PowerShell check"'], 
+                         capture_output=True, check=True)
+        except (subprocess.SubprocessError, FileNotFoundError):
+            logger.warning("PowerShell is not available on this system. Script encryption will not work.")
+            self.ps_cmd = None
+            
         self.stats = {
-            'original_size': 0,
-            'encrypted_size': 0,
-            'encryption_completed': False
+            "encrypted": False
         }
     
     def transform(self, content: str) -> str:
         """
-        Transform PowerShell script by encrypting it.
+        Transform the PowerShell script by encrypting it.
         
         Args:
             content: The PowerShell script content
             
         Returns:
-            Self-decrypting PowerShell script
+            The encrypted PowerShell script
         """
         if not content.strip():
-            logger.warning("Empty content provided to EncryptScript transformer")
             return content
         
-        self.stats['original_size'] = len(content)
+        if not self.ps_cmd:
+            logger.warning("PowerShell is required for script encryption, skipping this transformer")
+            return content
         
         try:
-            # Encrypt the script content
+            # Encrypt the content
             encrypted_payload = self._encrypt_content(content)
             
-            # Generate the loader script
+            # Create a loader script that decrypts and executes the payload
             loader_script = self._generate_loader_script(encrypted_payload)
             
-            self.stats['encrypted_size'] = len(loader_script)
-            self.stats['encryption_completed'] = True
+            self.stats["encrypted"] = True
+            logger.info("PowerShell script successfully encrypted with SecureString")
             
-            logger.info(f"PowerShell script encrypted successfully. Original size: {self.stats['original_size']} bytes, Encrypted size: {self.stats['encrypted_size']} bytes")
             return loader_script
-        except Exception as e:
-            logger.error(f"Failed to encrypt PowerShell script: {str(e)}")
-            # Return original content if encryption fails
+        except Exception as exception:
+            logger.error(f"Failed to encrypt script: {str(exception)}")
             return content
     
     def _encrypt_content(self, content: str) -> str:
         """
-        Encrypt the content using PowerShell's SecureString.
+        Encrypt the content using PowerShell's ConvertFrom-SecureString.
         
         Args:
             content: The content to encrypt
             
         Returns:
-            Encrypted content as a string
+            The encrypted content
         """
-        # Write content to a temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.ps1')
-        temp_path = temp_file.name
-        
         try:
-            with open(temp_path, 'w', encoding='utf-8') as f:
-                f.write(content)
+            # Create a temporary file with the content
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.ps1')
+            temp_path = temp_file.name
+            
+            with open(temp_path, 'w', encoding='utf-8') as file_handle:
+                file_handle.write(content)
             
             # PowerShell script to encrypt the content
+            safe_path = temp_path.replace('\\', '\\\\')
             ps_script = f"""
                 try {{
                     $key = (1..{self.key_size})
                     $keyBytes = [byte[]]$key
-                    $originalCode = Get-Content -Path "{temp_path.replace('\\', '\\\\')}" -Raw
+                    $originalCode = Get-Content -Path "{safe_path}" -Raw
                     $secure = ConvertTo-SecureString $originalCode -AsPlainText -Force
                     $encrypted = ConvertFrom-SecureString -SecureString $secure -Key $keyBytes
                     Write-Output $encrypted
@@ -106,31 +114,33 @@ class EncryptScript(Transformer):
             encrypt_script_file = tempfile.NamedTemporaryFile(delete=False, suffix='.ps1')
             encrypt_script_path = encrypt_script_file.name
             
-            with open(encrypt_script_path, 'w', encoding='utf-8') as f:
-                f.write(ps_script)
+            with open(encrypt_script_path, 'w', encoding='utf-8') as file_handle:
+                file_handle.write(ps_script)
             
             # Run the PowerShell encryption script
-            result = subprocess.run([self.ps_cmd, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", encrypt_script_path], 
-                                  capture_output=True, text=True, check=True)
+            result = subprocess.run(
+                [self.ps_cmd, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", encrypt_script_path],
+                capture_output=True, text=True, check=True
+            )
             
             encrypted_output = result.stdout.strip()
             if not encrypted_output:
                 raise ValueError("No encryption output was received")
             
             return encrypted_output
-        except subprocess.CalledProcessError as e:
-            logger.error(f"PowerShell encryption error: {e.stderr}")
+        except subprocess.CalledProcessError as error:
+            logger.error(f"PowerShell encryption error: {error.stderr}")
             raise
-        except Exception as e:
-            logger.error(f"Encryption error: {str(e)}")
+        except Exception as error:
+            logger.error(f"Encryption error: {str(error)}")
             raise
         finally:
             # Clean up temp files
             try:
                 os.unlink(temp_path)
                 os.unlink(encrypt_script_path)
-            except:
-                pass
+            except (FileNotFoundError, PermissionError, OSError) as cleanup_error:
+                logger.debug(f"Failed to clean up temporary files: {cleanup_error}")
     
     def _generate_loader_script(self, encrypted_payload: str) -> str:
         """
@@ -203,7 +213,7 @@ try {{
         Returns:
             Dictionary with transformation statistics
         """
-        return self.stats 
+        return self.stats
 
 class PowerShellEncryptor(Transformer):
     """Transformer that encrypts PowerShell scripts using ConvertTo-SecureString."""
@@ -240,13 +250,13 @@ class PowerShellEncryptor(Transformer):
             self.stats["encrypted"] = True
             logger.info("Encrypted the entire PowerShell script")
             return encrypted_script
-        else:
-            # In future versions, implement partial encryption
-            logger.warning("Partial encryption not yet implemented, using full encryption")
-            encrypted_script = self._encrypt_full_script(content)
-            self.stats["encrypted"] = True
-            logger.info("Encrypted the entire PowerShell script")
-            return encrypted_script
+        
+        # In future versions, implement partial encryption
+        logger.warning("Partial encryption not yet implemented, using full encryption")
+        encrypted_script = self._encrypt_full_script(content)
+        self.stats["encrypted"] = True
+        logger.info("Encrypted the entire PowerShell script")
+        return encrypted_script
     
     def _encrypt_full_script(self, content: str) -> str:
         """
@@ -296,23 +306,19 @@ class PowerShellEncryptor(Transformer):
         # Create variable names using random strings for obfuscation
         encrypted_var = ''.join(random.choice(string.ascii_letters) for _ in range(8))
         key_var = ''.join(random.choice(string.ascii_letters) for _ in range(8))
-        secure_var = ''.join(random.choice(string.ascii_letters) for _ in range(8))
+        decoded_var = ''.join(random.choice(string.ascii_letters) for _ in range(8))
         
-        # Create the launcher script
         launcher = f"""
-# PowerShell Encrypted Script
-$({key_var}) = '{key}'
-$({encrypted_var}) = @'
-{base64_content}
-'@
+# Encrypted PowerShell Script
+$script:{key_var} = "{key}"
+$script:{encrypted_var} = "{base64_content}"
 
-# Convert to secure string and decrypt
-$({secure_var}) = ConvertTo-SecureString -String $({encrypted_var}) -Key ([System.Text.Encoding]::ASCII.GetBytes($({key_var})))
-$BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($({secure_var}))
-$DecryptedScript = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-[System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-
-# Execute the decrypted script
-Invoke-Expression $DecryptedScript
+# Decryption and execution
+$script:{decoded_var} = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String($script:{encrypted_var}))
+Invoke-Expression $script:{decoded_var}
 """
-        return launcher 
+        return launcher
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics about the transformation."""
+        return self.stats 

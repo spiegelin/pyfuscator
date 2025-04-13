@@ -103,9 +103,8 @@ $data = '{string_content}'
 }}
 {plain_var}
 """
-        else:
-            # Simpler approach using DPAPI (machine/user specific)
-            return f"""
+        # Simpler approach using DPAPI (machine/user specific)
+        return f"""
 {secure_var} = ConvertTo-SecureString '{string_content}' -AsPlainText -Force | ConvertFrom-SecureString
 {plain_var} = ConvertTo-SecureString -String {secure_var} | ForEach-Object {{
     [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($_))

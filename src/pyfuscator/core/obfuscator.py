@@ -1,12 +1,10 @@
 """
 Core obfuscation functionality.
 """
+import random
+from typing import Dict, Any
 import ast
 import astunparse
-import random
-import time
-from typing import Dict, Any, Optional, List, Union
-from pathlib import Path
 
 from pyfuscator.config import ObfuscationConfig
 from pyfuscator.core.utils import (
@@ -15,13 +13,14 @@ from pyfuscator.core.utils import (
 from pyfuscator.core.globals import IMPORT_ALIASES, IMPORT_MAPPING
 from pyfuscator.encryption.methods import (
     encryption_method_1, encryption_method_2, 
-    encryption_method_3, encryption_method_4
+    encryption_method_3, encryption_method_4,
+    encryption_method_5
 )
 from pyfuscator.log_utils import logger, setup_logger
 from pyfuscator.transformers.python.imports import (
     ImportTracker, ObfuscateImports, ReplaceImportNames
 )
-from pyfuscator.transformers.python.identifiers import RenameIdentifiers, ImportRenamer
+from pyfuscator.transformers.python.identifiers import RenameIdentifiers
 from pyfuscator.transformers.python.strings import EncryptStrings
 from pyfuscator.transformers.python.functions import DynamicFunctionBody
 from pyfuscator.transformers.python.junk import InsertJunkCode
@@ -61,14 +60,14 @@ class Obfuscator:
         IMPORT_MAPPING.clear()
         
         # Choose processing path based on script language
-        script_language = self.config.language.lower() if hasattr(self.config, 'language') else 'python'
+        script_language = self.config.language.lower()
         
         if script_language == 'powershell':
             # Use PowerShell obfuscation process
             return self._obfuscate_powershell(source_code)
-        else:
-            # Default to Python obfuscation process
-            return self._obfuscate_python(source_code)
+        
+        # Default to Python obfuscation process
+        return self._obfuscate_python(source_code)
             
     def _obfuscate_powershell(self, source: str) -> str:
         """
@@ -80,7 +79,7 @@ class Obfuscator:
         Returns:
             The obfuscated PowerShell code
         """
-        if self.config.verbose:
+        if self.config.get('verbose', False):
             self.logger.info("Processing PowerShell script")
             
         # Create PowerShell obfuscator and transform content
@@ -92,34 +91,34 @@ class Obfuscator:
             self.stats.update(ps_obfuscator.stats)
         
         # Get rename map from PowerShell obfuscator if available and identifier renaming was enabled
-        if hasattr(self.config, 'rename_identifiers') and self.config.rename_identifiers:
+        if self.config.get('rename_identifiers', False):
             # If the identifier renamer exists in the coordinator, get its map
             if hasattr(ps_obfuscator, 'identifier_renamer') and ps_obfuscator.identifier_renamer:
                 self.stats['rename_map'] = ps_obfuscator.identifier_renamer.map_tracker
             
         # Log success message for each enabled technique
-        if hasattr(self.config, 'rename_identifiers') and self.config.rename_identifiers:
+        if self.config.get('rename_identifiers', False):
             self.logger.success("Renamed identifiers in PowerShell script")
             
-        if hasattr(self.config, 'encrypt_strings') and self.config.encrypt_strings:
+        if self.config.get('secure_strings', False):
             self.logger.success("Obfuscated strings in PowerShell script")
             
-        if hasattr(self.config, 'tokenize_commands') and self.config.tokenize_commands:
+        if self.config.get('tokenize_commands', False):
             self.logger.success("Tokenized commands in PowerShell script")
             
-        if hasattr(self.config, 'dotnet_methods') and self.config.dotnet_methods:
+        if self.config.get('dotnet_methods', False):
             self.logger.success("Applied .NET method obfuscation in PowerShell script")
             
-        if hasattr(self.config, 'junk_code') and self.config.junk_code > 0:
-            self.logger.success(f"Added {self.config.junk_code} junk statements")
+        if self.config.get('junk_code', 0) > 0:
+            self.logger.success(f"Added {self.config.get('junk_code')} junk statements")
             
-        if hasattr(self.config, 'lower_entropy') and self.config.lower_entropy:
+        if self.config.get('lower_entropy', False):
             self.logger.success("Applied lower entropy transformation to PowerShell script")
             
-        if hasattr(self.config, 'encrypt_layers') and self.config.encrypt_layers > 0:
-            self.logger.success(f"Applied {self.config.encrypt_layers} layers of encoding")
+        if self.config.get('encrypt_layers', 0) > 0:
+            self.logger.success(f"Applied {self.config.get('encrypt_layers')} layers of encoding")
         
-        self.logger.success(f"PowerShell obfuscation completed successfully")
+        self.logger.success("PowerShell obfuscation completed successfully")
         
         return obfuscated_code
         
@@ -160,14 +159,35 @@ class Obfuscator:
         set_parent_nodes(tree)
 
         # Track imports if we need them (for identifier renaming or import obfuscation)
-        # This is just a tracking step and doesn't transform the code
         if self.config.get('rename_identifiers', False) or self.config.get('obfuscate_imports', False):
             if self.config.get('verbose', False):
                 self.logger.info("Tracking imports for renaming/obfuscation")
             import_tracker = ImportTracker()
             import_tracker.visit(tree)
             if self.config.get('verbose', False):
-                self.logger.info(f"Found imports to track in the code")
+                self.logger.info("Found imports to track in the code")
+
+        # Variable to store the rename map
+        rename_map = {}
+            
+        # Apply identifier renaming if specified
+        if self.config.get('rename_identifiers', False):
+            if self.config.get('verbose', False):
+                self.logger.info("Renaming variables, functions, and class names")
+                
+            # Create the transformer with import awareness
+            rename_transformer = RenameIdentifiers(import_aware=True)
+            tree = rename_transformer.visit(tree)
+            
+            # Get stats
+            self.stats['identifiers_renamed'] = len(rename_transformer.mapping)
+            
+            # Store the rename map for display
+            rename_map = rename_transformer.map_tracker
+            self.stats['rename_map'] = rename_map
+            
+            # Log success
+            self.logger.success(f"Renamed {self.stats['identifiers_renamed']} identifiers")
 
         # Apply junk code if specified
         if self.config.get('junk_code', 0) > 0:
@@ -210,94 +230,95 @@ class Obfuscator:
             # Log success
             self.logger.success(f"Obfuscated {self.stats['imports_obfuscated']} import statements")
 
-        # Variable to store the rename map
-        rename_map = {}
-            
-        # Apply identifier renaming if specified
-        if self.config.get('rename_identifiers', False):
-            if self.config.get('verbose', False):
-                self.logger.info("Renaming variables, functions, and class names")
-                
-            # Create the transformer with import awareness
-            rename_transformer = RenameIdentifiers(import_aware=True)
-            tree = rename_transformer.visit(tree)
-            
-            # Get stats
-            self.stats['identifiers_renamed'] = len(rename_transformer.mapping)
-            
-            # Store the rename map for display
-            rename_map = rename_transformer.map_tracker
-            
-            # Log success
-            self.logger.success(f"Renamed {self.stats['identifiers_renamed']} identifiers")
-
-        # Store the rename map in the stats for later display
-        self.stats['rename_map'] = rename_map
         
         # Apply string encryption if specified
         if self.config.get('encrypt_strings', False):
             if self.config.get('verbose', False):
                 self.logger.info("Encrypting string literals")
                 
-            encrypt_transformer = EncryptStrings()  # Use default settings
-            tree = encrypt_transformer.visit(tree)
+            # Create the transformer
+            string_transformer = EncryptStrings()
+            tree = string_transformer.visit(tree)
             
             # Get stats
-            self.stats['strings_encrypted'] = getattr(encrypt_transformer, 'strings_encrypted', 0)
+            self.stats['strings_encrypted'] = getattr(string_transformer, 'strings_encrypted', 0)
             
             # Log success
             self.logger.success(f"Encrypted {self.stats['strings_encrypted']} string literals")
 
-        # Apply dynamic function execution if specified
+        # Apply dynamic execution if specified
         if self.config.get('dynamic_execution', False):
             if self.config.get('verbose', False):
-                self.logger.info("Converting functions to dynamic execution")
+                self.logger.info("Applying dynamic function execution")
                 
+            # Create the transformer
             dynamic_transformer = DynamicFunctionBody()
             tree = dynamic_transformer.visit(tree)
             
             # Get stats
-            self.stats['functions_dynamic'] = getattr(dynamic_transformer, 'functions_wrapped', 0)
+            self.stats['functions_dynamic'] = getattr(dynamic_transformer, 'count', 0)
             
             # Log success
             self.logger.success(f"Applied dynamic execution to {self.stats['functions_dynamic']} functions")
 
-        # Convert the AST back to source code
-        if self.config.get('verbose', False):
-            self.logger.info("Converting AST back to source code")
-            
+        # Convert AST back to source code
         result = astunparse.unparse(tree)
         
-        # Fix slice syntaxes as astunparse can incorrectly format them
+        # Fix slice syntax issues that astunparse can cause
+        if self.config.get('verbose', False):
+            self.logger.info("Fixing slice syntax issues")
         result = fix_slice_syntax(result)
-
-        # Apply encryption layers if specified
-        if self.config.get('encrypt_layers', 0) > 0:
-            layers = self.config.get('encrypt_layers', 0)
+        
+        # Apply encryption if specified
+        encryption_layers = self.config.get('encrypt_layers', 0)
+        if encryption_layers > 0:
             if self.config.get('verbose', False):
-                self.logger.info(f"Applying {layers} encryption layers")
-                
-            # Apply encryption layers with different methods based on layer count
-            if layers >= 1:
-                result = encryption_method_1(result)
-            if layers >= 2:
-                result = encryption_method_2(result)
-            if layers >= 3:
-                result = encryption_method_3(result)
-            if layers >= 4:
-                result = encryption_method_4(result)
-            # Layer 5 is a combination of all methods
-            if layers >= 5:
-                result = encryption_method_1(encryption_method_2(encryption_method_3(encryption_method_4(result))))
-                
-            # Log success
-            self.logger.success(f"Applied {layers} layers of encryption")
+                self.logger.info(f"Applying {encryption_layers} layers of encryption")
+            
+            # Apply specified number of encryption layers
+            result = self._apply_encryption_layers(result, encryption_layers)
             
             # Update stats
-            self.stats['encryption_layers'] = layers
+            self.stats['encryption_layers'] = encryption_layers
             
-        # Return the obfuscated source
+            # Log success
+            self.logger.success(f"Applied {encryption_layers} layers of encryption")
+        
+        # Return the final transformed code
         return result
+
+    def _apply_encryption_layers(self, code: str, layers: int) -> str:
+        """
+        Apply multiple layers of encryption to code.
+        
+        Args:
+            code: The code to encrypt
+            layers: Number of encryption layers to apply
+            
+        Returns:
+            Encrypted code
+        """
+        for i in range(layers):
+            method = random.randint(1, 5)
+            method_name = ["Linear Congruence","XOR with Shuffle Key","RSA-like","Key Array XOR","Triple Layer Cipher"]
+            if self.config.get('verbose', False):
+                self.logger.info(f"Applying encryption method {method_name[method-1]} (layer {i+1}/{layers})")
+            
+            if method == 1:
+                code = encryption_method_1(code)
+            elif method == 2:
+                code = encryption_method_2(code)
+            elif method == 3:
+                code = encryption_method_3(code)
+            elif method == 4:
+                code = encryption_method_4(code)
+            else:
+                code = encryption_method_5(code)
+            
+            if self.config.get('verbose', False):
+                self.logger.info(f"Layer {i+1} encryption complete, code size: {len(code)} bytes")
+            
+        return code
 
 def obfuscate_file(input_file: str, output_file: str, **kwargs) -> Dict[str, Any]:
     """
@@ -314,15 +335,50 @@ def obfuscate_file(input_file: str, output_file: str, **kwargs) -> Dict[str, Any
     try:
         # Detect language if not specified
         language = kwargs.pop('language', None)
-        if not language:
-            language = detect_script_language(input_file)
+        
         
         # Read the input file
         with open(input_file, 'r', encoding='utf-8') as f:
             source_code = f.read()
         
+        # Prepare config dictionaries based on the detected language
+        common_options = {}
+        language_specific_options = {}
+        
+        # Extract common options
+        common_keys = ['remove_comments', 'rename_identifiers', 'junk_code', 'encrypt_layers', 'verbose']
+        for key in common_keys:
+            if key in kwargs:
+                common_options[key] = kwargs.pop(key)
+        
+        # Extract language-specific options
+        if language.lower() == 'python':
+            python_keys = ['encrypt_strings', 'obfuscate_imports', 'dynamic_execution']
+            for key in python_keys:
+                if key in kwargs:
+                    language_specific_options[key] = kwargs.pop(key)
+        elif language.lower() == 'powershell':
+            powershell_keys = [
+                'tokenize_commands', 'dotnet_methods', 'secure_strings', 'string_divide',
+                'base64_encode', 'base64_full', 'base64_commands', 'script_encrypt',
+                'use_ads', 'lower_entropy'
+            ]
+            for key in powershell_keys:
+                if key in kwargs:
+                    language_specific_options[key] = kwargs.pop(key)
+        
         # Create ObfuscationConfig
-        config = ObfuscationConfig(language=language, **kwargs)
+        config = ObfuscationConfig(language=language)
+        
+        # Update the config dictionaries
+        config.common.update(common_options)
+        if language.lower() == 'python':
+            config.python.update(language_specific_options)
+        elif language.lower() == 'powershell':
+            config.powershell.update(language_specific_options)
+        
+        # Any remaining kwargs go into extra_options
+        config.extra_options.update(kwargs)
         
         # Create obfuscator
         obfuscator = Obfuscator(config)
@@ -341,37 +397,3 @@ def obfuscate_file(input_file: str, output_file: str, **kwargs) -> Dict[str, Any
     except Exception as e:
         logger.error(f"Error in obfuscate_file: {str(e)}")
         raise
-
-def detect_script_language(input_file: str, specified_language: Optional[str] = None) -> str:
-    """
-    Detect the script language based on file extension or use the specified language.
-    
-    Args:
-        input_file: Path to the input file
-        specified_language: Language specified by the user (if any)
-        
-    Returns:
-        Detected or specified script language
-    """
-    from pathlib import Path
-    
-    if specified_language:
-        # User specified a language
-        logger.info(f"Using specified script language: {specified_language}")
-        script_language = specified_language
-    else:
-        # Auto-detect based on file extension
-        file_ext = Path(input_file).suffix.lower()
-        
-        if file_ext == '.py':
-            script_language = 'python'
-            logger.info(f"Auto-detected Python script based on .py extension")
-        elif file_ext in ['.ps1', '.psm1', '.psd1']:
-            script_language = 'powershell'
-            logger.info(f"Auto-detected PowerShell script based on {file_ext} extension")
-        else:
-            logger.warning(f"Could not determine script language from extension {file_ext}")
-            logger.warning(f"Defaulting to Python. Use -x flag to specify script language explicitly.")
-            script_language = 'python'  # Default to Python for now
-    
-    return script_language 

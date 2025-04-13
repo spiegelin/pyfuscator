@@ -3,7 +3,7 @@ PowerShell junk code insertion transformer.
 """
 import random
 import string
-from typing import List, Optional, Dict
+from typing import Dict
 
 from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger
@@ -61,6 +61,7 @@ class InsertJunkCode:
             
         # TODO: Add junk in functions if junk_in_functions is True
         # This would require more sophisticated parsing to find function bodies
+        # Later
         
         logger.info(f"Inserted {self.statements_added} junk statements in PowerShell script")
         return transformed

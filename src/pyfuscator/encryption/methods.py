@@ -1,8 +1,8 @@
 """
 Encryption methods for code obfuscation.
 """
-import random
-from typing import List
+import base64, random, zlib, json
+
 
 from pyfuscator.core.utils import random_name
 
@@ -257,3 +257,49 @@ def encryption_method_4(code: str) -> str:
     ]
     
     return "\n".join(output_code) 
+
+def encryption_method_5(code: str) -> str:
+    """
+    Applies three processes to the given code.
+
+    1: Base64 encoding.
+    2: String reversal combined with XOR.
+    3: Compression with zlib and encoding with Base85.
+
+    Args:
+        code: The Python code to encrypt.
+
+    Returns:
+        The final encrypted code that, when executed, will decrypt itself.
+    """
+
+    # --- Base64 Encoding ---
+    # Encode the original code and wrap it in an exec statement.
+    encoded = base64.b64encode(code.encode('utf-8')).decode('ascii')
+    # Using json.dumps ensures the string is safely escaped.
+    code = f"import base64; exec(base64.b64decode({json.dumps(encoded)}).decode())"
+
+    # --- String Reversal and XOR ---
+    key = random.randint(1, 255)
+    # Apply an XOR transformation on the output of layer 1.
+    xor_result = ''.join(chr(ord(c) ^ key) for c in code)
+    # Reverse the XOR-transformed string.
+    reversed_result = xor_result[::-1]
+    # Generate random variable names.
+    key_var = ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(3))
+    code_var = ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(3))
+    # Use json.dumps to safely insert the reversed result.
+    code = (
+        f"{key_var} = {key}\n"
+        f"{code_var} = {json.dumps(reversed_result)}\n"
+        f"exec(''.join(chr(ord(c) ^ {key_var}) for c in {code_var}[::-1]))"
+    )
+
+    # --- Compression and Base85 Encoding ---
+    # Compress the layer 2 string.
+    compressed = zlib.compress(code.encode('utf-8'))
+    encoded_b85 = base64.b85encode(compressed).decode('ascii')
+    # Wrap the compressed and encoded string in an exec call.
+    code = f"import base64, zlib; exec(zlib.decompress(base64.b85decode({json.dumps(encoded_b85)})).decode())"
+
+    return code

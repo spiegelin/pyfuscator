@@ -5,7 +5,7 @@ import ast
 import base64
 import importlib
 import sys
-from typing import Dict, Optional, List, Any
+from typing import Dict, List
 
 from pyfuscator.core.utils import random_name
 from pyfuscator.core.globals import IMPORT_ALIASES, IMPORT_MAPPING
@@ -217,63 +217,63 @@ class ObfuscateImports(ast.NodeTransformer):
             )
                 
             return [assign_node]
-        else:
-            # For regular from-import, we'll use the same pattern but handle each specific import
-            new_nodes = []
+        
+        # For regular from-import, we'll use the same pattern but handle each specific import
+        new_nodes = []
+        
+        # First, import the module with a random alias
+        module_alias = random_name()
+        
+        # Record mappings
+        self._record_import_mapping(node.module, module_alias)
+        
+        # Create the module import
+        import_call = self._create_dynamic_import(node.module)
+        assign_node = ast.Assign(
+            targets=[ast.Name(id=module_alias, ctx=ast.Store())],
+            value=import_call
+        )
+        new_nodes.append(assign_node)
+        
+        # Now create variable assignments for each imported name
+        for alias in node.names:
+            orig_name = alias.name
+            new_alias = random_name()
             
-            # First, import the module with a random alias
-            module_alias = random_name()
+            # Record the mapping
+            IMPORT_MAPPING[orig_name] = new_alias
+            if alias.asname:
+                IMPORT_MAPPING[alias.asname] = new_alias
             
-            # Record mappings
-            self._record_import_mapping(node.module, module_alias)
+            # Also map the fully qualified name
+            qualified_name = f"{node.module}.{orig_name}"
+            IMPORT_MAPPING[qualified_name] = new_alias
             
-            # Create the module import
-            import_call = self._create_dynamic_import(node.module)
+            # Create an assignment: new_alias = module_alias.orig_name
+            attr_node = ast.Attribute(
+                value=ast.Name(id=module_alias, ctx=ast.Load()),
+                attr=orig_name,
+                ctx=ast.Load()
+            )
             assign_node = ast.Assign(
-                targets=[ast.Name(id=module_alias, ctx=ast.Store())],
-                value=import_call
+                targets=[ast.Name(id=new_alias, ctx=ast.Store())],
+                value=attr_node
             )
             new_nodes.append(assign_node)
             
-            # Now create variable assignments for each imported name
-            for alias in node.names:
-                orig_name = alias.name
-                new_alias = random_name()
-                
-                # Record the mapping
-                IMPORT_MAPPING[orig_name] = new_alias
-                if alias.asname:
-                    IMPORT_MAPPING[alias.asname] = new_alias
-                
-                # Also map the fully qualified name
-                qualified_name = f"{node.module}.{orig_name}"
-                IMPORT_MAPPING[qualified_name] = new_alias
-                
-                # Create an assignment: new_alias = module_alias.orig_name
-                attr_node = ast.Attribute(
-                    value=ast.Name(id=module_alias, ctx=ast.Load()),
-                    attr=orig_name,
-                    ctx=ast.Load()
-                )
-                assign_node = ast.Assign(
-                    targets=[ast.Name(id=new_alias, ctx=ast.Store())],
-                    value=attr_node
-                )
-                new_nodes.append(assign_node)
-                
-                # For test execution, try to make the imported item available
-                if 'pytest' in sys.modules:
-                    try:
-                        module = importlib.import_module(node.module)
-                        item = getattr(module, orig_name)
-                        globals()[orig_name] = item
-                        if alias.asname:
-                            globals()[alias.asname] = item
-                        globals()[new_alias] = item
-                    except (ImportError, AttributeError):
-                        pass
-            
-            return new_nodes
+            # For test execution, try to make the imported item available
+            if 'pytest' in sys.modules:
+                try:
+                    module = importlib.import_module(node.module)
+                    item = getattr(module, orig_name)
+                    globals()[orig_name] = item
+                    if alias.asname:
+                        globals()[alias.asname] = item
+                    globals()[new_alias] = item
+                except (ImportError, AttributeError):
+                    pass
+        
+        return new_nodes
 
 class ReplaceImportNames(ast.NodeTransformer):
     """

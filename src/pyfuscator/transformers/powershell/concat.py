@@ -4,7 +4,7 @@ PowerShell command and function tokenization transformer.
 import re
 import random
 import string
-from typing import List, Dict, Set, Any, Tuple
+from typing import Dict, Set, Any, Tuple
 
 from pyfuscator.core.transformer import Transformer
 from pyfuscator.log_utils import logger
@@ -189,7 +189,7 @@ class CommandTokenizer(Transformer):
         
         # Also log which specific commands were tokenized
         if self.stats["tokenized_commands"] > 0 or self.stats["tokenized_functions"] > 0:
-            logger.debug(f"Tokenized PowerShell elements successfully - including test script functions")
+            logger.debug("Tokenized PowerShell elements successfully - including test script functions")
         
         # Ensure the correct stat key is used for coordinator
         self.stats["commands_tokenized"] = self.stats["tokenized_commands"]
@@ -346,7 +346,7 @@ class CommandTokenizer(Transformer):
         
         # Create environment variables for each segment
         env_vars = []
-        for i, segment in enumerate(segments):
+        for _, segment in enumerate(segments):
             var_name = f"{''.join(random.choice(string.ascii_uppercase) for _ in range(4))}"
             env_vars.append(f"$env:{var_name}='{segment}'")
         

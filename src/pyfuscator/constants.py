@@ -4,7 +4,7 @@ Constants used throughout PyFuscator.
 from colorama import Fore, Style
 
 # Banner for the help menu with Rich markup formatting
-BANNER = """[red]
+BANNER = r"""[red]
              __                  _           
   _ __ _  _ / _|_  _ ___ __ __ _| |_ ___ _ _ 
  | '_ \ || |  _| || (_-</ _/ _` |  _/ _ \ '_|
@@ -35,25 +35,3 @@ COLOR_RESET = Style.RESET_ALL
 COLOR_ERROR = Fore.RED
 COLOR_SUCCESS = Fore.GREEN
 COLOR_INFO = Fore.YELLOW
-
-# Usage examples
-EXAMPLES = """  # Basic obfuscation with identifier renaming and 2 encryption layers
-  pyfuscator -i -e 2 input.py output.py
-  
-  # Maximum obfuscation with all features enabled
-  pyfuscator -i -e 3 -j 300 -r -o -d input.py output.py
-  
-  # Only identifier renaming
-  pyfuscator -i input.py output.py
-  
-  # Only add junk code
-  pyfuscator -j 150 input.py output.py
-  
-  # With verbose logging
-  pyfuscator -v -i -e 1 -j 50 input.py output.py
-  
-  # Apply all obfuscation techniques except encryption
-  pyfuscator -a input.py output.py
-  
-  # Apply all techniques with 2 encryption layers
-  pyfuscator -a -e 2 input.py output.py"""

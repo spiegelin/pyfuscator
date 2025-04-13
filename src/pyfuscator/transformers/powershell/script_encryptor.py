@@ -1,11 +1,19 @@
 """
 PowerShell Script Encryption transformer - encrypts entire scripts using SecureString.
 """
-import re
 import random
 import base64
-import string
-from typing import Dict, Any, List
+import subprocess
+import tempfile
+import os
+import platform
+import shutil
+import binascii
+from typing import Dict, Any
+
+# Use built-in libraries for AES encryption
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
 
 from pyfuscator.core.transformer import Transformer
 from pyfuscator.core.utils import random_name
@@ -104,11 +112,6 @@ class PowerShellScriptEncryptor(Transformer):
         
         # We need to pre-encrypt the content using the same approach as powershell-encryption.py
         # This requires us to use subprocess to run PowerShell and encrypt the content
-        import subprocess
-        import tempfile
-        import os
-        import platform
-        import shutil
         
         # Determine PowerShell executable based on platform
         powershell_exe = "powershell.exe" if platform.system() == "Windows" else "pwsh"
@@ -207,7 +210,7 @@ try {{
             # Clean up the temporary file
             try:
                 os.unlink(temp_path)
-            except:
+            except Exception as e:
                 pass
     
     def _fallback_encrypt_script(self, content: str, key_bytes: bytes) -> tuple:
@@ -222,7 +225,6 @@ try {{
             Tuple of (unused, launcher_script)
         """
         # Convert bytes to hex strings for direct embedding in PowerShell
-        import binascii
         content_bytes = content.encode('utf-16le')
         content_hex = binascii.hexlify(content_bytes).decode('ascii')
         
@@ -295,11 +297,6 @@ try {{
             String representation of encrypted content
         """
         try:
-            # Use built-in libraries for AES encryption
-            import os
-            from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-            from cryptography.hazmat.primitives import padding
-            
             # Generate random IV (16 bytes for AES)
             iv = os.urandom(16)
             

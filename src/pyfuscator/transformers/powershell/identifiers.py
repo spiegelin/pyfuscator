@@ -2,9 +2,7 @@
 PowerShell identifier renaming transformer.
 """
 import re
-import random
-import string
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, Optional
 
 from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger

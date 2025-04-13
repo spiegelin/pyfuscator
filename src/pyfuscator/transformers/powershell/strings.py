@@ -197,9 +197,9 @@ class ObfuscateStrings(Transformer):
         technique = random.choice(techniques)
         
         # Apply the chosen technique
-        if technique == self._concatenation_technique or technique == self._mixed_technique:
+        if technique.__name__ == "_concatenation_technique" or technique.__name__ == "_mixed_technique":
             return technique(inner_content, quote_char)
-        elif technique == self._hex_encode_technique:
+        elif technique.__name__ == "_hex_encode_technique":
             return technique(inner_content)
         else:
             return technique(inner_content)

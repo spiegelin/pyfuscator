@@ -9,7 +9,7 @@ import os
 import tempfile
 import textwrap
 import platform
-from typing import List, Tuple, Dict, Any, Optional
+from typing import Dict, Any
 
 from pyfuscator.log_utils import logger
 
@@ -50,7 +50,7 @@ class EncodeCommands:
             # Use SecureString encryption for the entire script
             logger.info("Encrypting PowerShell script using SecureString")
             return self._encrypt_with_secure_string(content)
-        elif self.encode_blocks:
+        if self.encode_blocks:
             # Find script blocks: { ... }
             # This is a simplified pattern - complex blocks may need more sophisticated parsing
             block_pattern = r'(?<!\$)\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}'
@@ -160,7 +160,7 @@ class EncodeCommands:
             # Clean up temporary file
             try:
                 os.unlink(temp_path)
-            except:
+            except Exception as e:
                 pass
     
     def _encode_base64(self, script: str) -> str:

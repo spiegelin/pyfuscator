@@ -5,12 +5,11 @@ Note: This is a utility rather than a transformer because it requires file syste
 operations rather than just in-memory code manipulation.
 """
 import os
-import subprocess
 import random
 import platform
 import tempfile
 import re
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple
 
 from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger
@@ -131,12 +130,12 @@ class AlternateDataStreams:
         
         # Create the base file if it doesn't exist
         if not os.path.exists(base_file):
-            with open(base_file, "w") as f:
+            with open(base_file, "w", encoding="utf-8") as f:
                 f.write("This file contains hidden data in an alternate data stream.")
         
         # Write content to the ADS
         try:
-            with open(stream_path, "w") as f:
+            with open(stream_path, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"Successfully stored script in ADS: {stream_path}")
         except Exception as e:

@@ -16,6 +16,11 @@ class RenameIdentifiers:
         """Initialize the transformer."""
         self.variable_mapping: Dict[str, str] = {}
         self.function_mapping: Dict[str, str] = {}
+        # Add hierarchical tracking
+        self.map_tracker: Dict[str, Dict] = {
+            "Functions": {},  # Function name -> {Variables: {}}
+            "Variables": {}   # Global variable name -> new name
+        }
         self.reserved_keywords = {
             # PowerShell reserved keywords
             'begin', 'break', 'catch', 'class', 'continue', 'data', 'define', 'do', 'dynamicparam', 'else', 
@@ -54,6 +59,10 @@ class RenameIdentifiers:
         # Reset mappings
         self.variable_mapping = {}
         self.function_mapping = {}
+        self.map_tracker = {
+            "Functions": {},  # Function name -> {Variables: {}}
+            "Variables": {}   # Global variable name -> new name
+        }
         
         # First pass: identify variables and functions
         self._identify_variables(content)
@@ -69,12 +78,26 @@ class RenameIdentifiers:
             # Match only function declarations and function calls (not variable assignments)
             pattern = r'(?i)(function\s+)' + re.escape(original) + r'\b|\b' + re.escape(original) + r'(?=\s*\()'
             transformed = re.sub(pattern, lambda m: m.group(1) + new_name if m.group(1) else new_name, transformed)
+            
+            # Add to hierarchical tracker
+            self.map_tracker["Functions"][original] = {
+                "new_name": new_name,
+                "Variables": {}
+            }
         
         # Replace variables
         for original, new_name in self.variable_mapping.items():
             # Match variable with $ prefix, ensuring it's a whole variable name
             pattern = r'(\$)' + re.escape(original[1:]) + r'\b'
             transformed = re.sub(pattern, r'\1' + new_name[1:], transformed)
+            
+            # Add to hierarchical tracker
+            function_context = self._get_function_context(original, content)
+            if function_context:
+                if function_context in self.map_tracker["Functions"]:
+                    self.map_tracker["Functions"][function_context]["Variables"][original] = new_name
+            else:
+                self.map_tracker["Variables"][original] = new_name
         
         return transformed
     
@@ -87,7 +110,9 @@ class RenameIdentifiers:
         """
         total_renames = len(self.variable_mapping) + len(self.function_mapping)
         return {
-            "renamed_identifiers": total_renames
+            "renamed_identifiers": total_renames,
+            "variables_renamed": len(self.variable_mapping),
+            "functions_renamed": len(self.function_mapping)
         }
     
     def _identify_variables(self, content: str) -> None:
@@ -163,3 +188,34 @@ class RenameIdentifiers:
                         new_name = random_name(8)
                     
                     self.function_mapping[func_name] = new_name 
+    
+    def _get_function_context(self, variable: str, content: str) -> Optional[str]:
+        """
+        Determine if a variable is associated with a specific function.
+        
+        Args:
+            variable: The variable name
+            content: The PowerShell script content
+            
+        Returns:
+            Function name if the variable is defined within a function, None otherwise
+        """
+        # Simple pattern to check if variable appears inside function blocks
+        for func_name in self.function_mapping:
+            # Find function definition
+            func_def_pattern = r'(?i)function\s+' + re.escape(func_name) + r'\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}'
+            func_matches = re.finditer(func_def_pattern, content, re.DOTALL)
+            
+            for func_match in func_matches:
+                func_body = func_match.group(1)
+                # Check if variable is defined in function body
+                var_pattern = r'\$' + re.escape(variable[1:]) + r'\s*='
+                if re.search(var_pattern, func_body):
+                    return func_name
+                
+                # Check if variable is a parameter
+                param_pattern = r'(?i)param\s*\(\s*(?:\[.*?\])?\s*\$' + re.escape(variable[1:]) + r'\b'
+                if re.search(param_pattern, func_body):
+                    return func_name
+        
+        return None 

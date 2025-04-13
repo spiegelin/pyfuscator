@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.box import ROUNDED
 from rich import print as rprint
+from rich.tree import Tree
 
 from pyfuscator import __version__
 from pyfuscator.config import ObfuscationConfig
@@ -27,38 +28,6 @@ app = typer.Typer(
 console = Console()
 # Default logger instance - will be configured later
 logger = setup_logger()
-
-
-def _read_file(file_path: str) -> str:
-    """Read content from a file.
-    
-    Args:
-        file_path: Path to the file to read
-        
-    Returns:
-        Content of the file as a string
-    """
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        logger.error(f"Error reading file {file_path}: {str(e)}")
-        raise typer.Exit(code=1)
-
-
-def _write_file(file_path: str, content: str) -> None:
-    """Write content to a file.
-    
-    Args:
-        file_path: Path to the file to write
-        content: Content to write to the file
-    """
-    try:
-        with open(file_path, "w", encoding="utf-8", errors="replace") as f:
-            f.write(content)
-    except Exception as e:
-        logger.error(f"Error writing file {file_path}: {str(e)}")
-        raise typer.Exit(code=1)
 
 
 def _display_stats(stats: Dict[str, Any], language: str, verbose: bool = False) -> None:
@@ -95,23 +64,84 @@ def _display_stats(stats: Dict[str, Any], language: str, verbose: bool = False) 
     console.print("[magenta]Obfuscation complete![/]")
 
 
-def _detect_language(file_path: str) -> str:
-    """Detect the programming language based on the file extension.
+def _display_rename_map(rename_map: Dict[str, Any], language: str) -> None:
+    """Display the identifier renaming map in a hierarchical table.
     
     Args:
-        file_path: Path to the file
-        
-    Returns:
-        Detected language ("python" or "powershell") or an empty string if unable to detect
+        rename_map: Map of renamed identifiers with their hierarchical relationships
+        language: The programming language that was obfuscated
     """
-    ext = Path(file_path).suffix.lower()
+    if not rename_map:
+        return
     
-    if ext in [".py", ".pyw"]:
-        return "python"
-    elif ext in [".ps1", ".psm1", ".psd1"]:
-        return "powershell"
-    else:
-        return ""
+    # Create a tree for hierarchical display
+    CYAN = "bold cyan"
+    tree = Tree("Renamed Identifiers", style=CYAN)
+    
+    if language.lower() == "python":
+        # Add classes
+        if "Classes" in rename_map and rename_map["Classes"]:
+            class_branch = tree.add("Classes", style="bold green")
+            for class_name, class_data in rename_map["Classes"].items():
+                new_class_name = class_data.get("new_name", "Unknown")
+                class_node = class_branch.add(f"[green]{class_name}[/green] → [yellow]{new_class_name}[/yellow]")
+                
+                # Add class functions
+                if "Functions" in class_data and class_data["Functions"]:
+                    for func_name, func_data in class_data["Functions"].items():
+                        new_func_name = func_data.get("new_name", "Unknown")
+                        func_node = class_node.add(f"[cyan]Function: {func_name}[/cyan] → [yellow]{new_func_name}[/yellow]")
+                        
+                        # Add function variables
+                        if "Variables" in func_data and func_data["Variables"]:
+                            for var_name, new_var_name in func_data["Variables"].items():
+                                func_node.add(f"[blue]Variable: {var_name}[/blue] → [yellow]{new_var_name}[/yellow]")
+                
+                # Add class variables
+                if "Variables" in class_data and class_data["Variables"]:
+                    for var_name, new_var_name in class_data["Variables"].items():
+                        class_node.add(f"[blue]Variable: {var_name}[/blue] → [yellow]{new_var_name}[/yellow]")
+        
+        # Add global functions
+        if "Functions" in rename_map and rename_map["Functions"]:
+            function_branch = tree.add("Global Functions", style=CYAN)
+            for func_name, func_data in rename_map["Functions"].items():
+                new_func_name = func_data.get("new_name", "Unknown")
+                func_node = function_branch.add(f"[cyan]{func_name}[/cyan] → [yellow]{new_func_name}[/yellow]")
+                
+                # Add function variables
+                if "Variables" in func_data and func_data["Variables"]:
+                    for var_name, new_var_name in func_data["Variables"].items():
+                        func_node.add(f"[blue]Variable: {var_name}[/blue] → [yellow]{new_var_name}[/yellow]")
+        
+        # Add global variables
+        if "Variables" in rename_map and rename_map["Variables"]:
+            variable_branch = tree.add("Global Variables", style="bold blue")
+            for var_name, new_var_name in rename_map["Variables"].items():
+                variable_branch.add(f"[blue]{var_name}[/blue] → [yellow]{new_var_name}[/yellow]")
+    
+    elif language.lower() == "powershell":
+        # Add global functions
+        if "Functions" in rename_map and rename_map["Functions"]:
+            function_branch = tree.add("Functions", style=CYAN)
+            for func_name, func_data in rename_map["Functions"].items():
+                new_func_name = func_data.get("new_name", "Unknown")
+                func_node = function_branch.add(f"[cyan]{func_name}[/cyan] → [yellow]{new_func_name}[/yellow]")
+                
+                # Add function variables
+                if "Variables" in func_data and func_data["Variables"]:
+                    for var_name, new_var_name in func_data["Variables"].items():
+                        func_node.add(f"[blue]{var_name}[/blue] → [yellow]{new_var_name}[/yellow]")
+        
+        # Add global variables
+        if "Variables" in rename_map and rename_map["Variables"]:
+            variable_branch = tree.add("Global Variables", style="bold blue")
+            for var_name, new_var_name in rename_map["Variables"].items():
+                variable_branch.add(f"[blue]{var_name}[/blue] → [yellow]{new_var_name}[/yellow]")
+    
+    # Print the tree
+    console.print("")
+    console.print(tree)
 
 
 def custom_help_callback(ctx: typer.Context, value: bool):
@@ -161,7 +191,7 @@ def main(ctx: typer.Context,
 def python_command(
     input_file: str = typer.Argument(..., help="Input Python file to obfuscate"),
     output_file: str = typer.Argument(..., help="Output file for the obfuscated code"),
-    remove_comments: bool = typer.Option(True, "-r", "--remove-comments", help="Remove comments from the code"),
+    remove_comments: bool = typer.Option(True, "-r", "--remove-comments/--no-remove-comments", help="Remove comments from the code"),
     junk_code: int = typer.Option(0, "-j", "--junk-code", help="Insert random junk statements"),
     obfuscate_imports: bool = typer.Option(False, "-o", "--obfuscate-imports", help="Obfuscate import statements"),
     rename_identifiers: bool = typer.Option(False, "-i", "--identifier-rename", help="Rename variables, functions and class names"),
@@ -269,7 +299,15 @@ def python_command(
         tech_str = ", ".join(tech_applied)
         console.print(f"[green]✓ Successfully applied:[/] {tech_str}")
         
-        # Display statistics only in verbose mode
+        # Display rename map if identifier renaming is enabled (explicitly or via all_obfuscations)
+        if rename_identifiers or all_obfuscations:
+            rename_map = stats.get('rename_map', {})
+            if rename_map:
+                _display_rename_map(rename_map, "python")
+            else:
+                logger.debug("No rename map found in stats")
+        
+        # Display statistics only in verbose mode (after rename map)
         if verbose:
             console.print("")
             _display_stats(stats, "python", verbose)
@@ -285,7 +323,7 @@ def python_command(
 def powershell_command(
     input_file: str = typer.Argument(..., help="Input PowerShell file to obfuscate"),
     output_file: str = typer.Argument(..., help="Output file for the obfuscated code"),
-    remove_comments: bool = typer.Option(True, "-r", "--remove-comments", help="Remove comments from the code"),
+    remove_comments: bool = typer.Option(True, "-r", "--remove-comments/--no-remove-comments", help="Remove comments from the code"),
     junk_code: int = typer.Option(0, "-j", "--junk-code", help="Insert random junk statements"),
     tokenize_commands: bool = typer.Option(False, "-c", "--tokenize-commands", help="Tokenize and obfuscate PowerShell commands"),
     rename_identifiers: bool = typer.Option(False, "-i", "--identifier-rename", help="Rename variables and function names"),
@@ -427,7 +465,15 @@ def powershell_command(
         tech_str = ", ".join(tech_applied)
         console.print(f"[green]✓ Successfully applied:[/] {tech_str}")
         
-        # Display statistics only in verbose mode
+        # Display rename map if identifier renaming is enabled (explicitly or via all_obfuscations)
+        if rename_identifiers or all_obfuscations:
+            rename_map = stats.get('rename_map', {})
+            if rename_map:
+                _display_rename_map(rename_map, "powershell")
+            else:
+                logger.debug("No rename map found in stats")
+        
+        # Display statistics only in verbose mode (after rename map)
         if verbose:
             console.print("")
             _display_stats(stats, "powershell", verbose)

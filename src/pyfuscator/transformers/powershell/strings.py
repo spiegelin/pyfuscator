@@ -31,8 +31,10 @@ class ObfuscateStrings(Transformer):
         
         # Regex to find string literals with consideration for escape sequences
         # This handles both single and double quoted strings
-        self.string_pattern = re.compile(r'(?<!`)(?:"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')')
-    
+        self.string_pattern = re.compile(
+            r'(?<![`\\])(?:"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')'
+        )
+
     def transform(self, content: str) -> str:
         """
         Transform the PowerShell script by obfuscating strings.
@@ -108,9 +110,8 @@ class ObfuscateStrings(Transformer):
         Returns:
             True if the string is likely a cmdlet parameter, False otherwise
         """
-        # Check if the string is preceded by a dash and space or tab
-        prefix = content[max(0, pos-10):pos].strip()
-        return prefix.endswith('-')
+        return content[pos-1] == '-' if pos > 0 else False
+
     
     def _contains_variables(self, string_content: str) -> bool:
         """
@@ -147,7 +148,7 @@ class ObfuscateStrings(Transformer):
         
         # Check for common attribute patterns
         attribute_patterns = [
-            r'\[ValidateSet\s*\(',          # ValidateSet attribute
+            r'\[ValidateSet\(\s*',          # ValidateSet attribute
             r'\[Parameter\s*\(',            # Parameter attribute
             r'\[ValidatePattern\s*\(',      # ValidatePattern attribute
             r'\[Alias\s*\(',                # Alias attribute
@@ -186,55 +187,23 @@ class ObfuscateStrings(Transformer):
         # Choose an obfuscation technique
         # Comment out format operator since it breaks the script when used with other techniques, 
         # too much effort to fix it, will do it later (probably never)
+
+        # Commented out the hex_encode_technique since it is getting too many detections
         techniques = [
-            #self._format_operator_technique,
-            self._concatenation_technique,
-            self._char_array_technique,
-            self._hex_encode_technique,
-            self._mixed_technique
+            self._format_operator_technique, # 2 VT detections (powercat)
+            lambda x: self._concatenation_technique(x, quote_char), # 3 VT detections (powercat)
+            self._char_array_technique, # 2 VT detections (powercat)
+            #self._hex_encode_technique, # 11 VT detections (powercat)
+            lambda x: self._mixed_technique(x, quote_char)
         ]
         
         technique = random.choice(techniques)
+        return technique(inner_content)
         
-        # Apply the chosen technique
-        if technique.__name__ == "_concatenation_technique" or technique.__name__ == "_mixed_technique":
-            return technique(inner_content, quote_char)
-        elif technique.__name__ == "_hex_encode_technique":
-            return technique(inner_content)
-        else:
-            return technique(inner_content)
     
     def _format_operator_technique(self, string_content: str) -> str:
-        """
-        Obfuscate a string using the format operator.
-        
-        Args:
-            string_content: The string content without quotes
-            
-        Returns:
-            Obfuscated string expression
-        """
-        format_parts = []
-        values = []
-        
-        # Create format placeholders and values
-        i = 0
-        while i < len(string_content):
-            # Determine segment length (1-3 characters)
-            segment_len = min(random.randint(1, 3), len(string_content) - i)
-            segment = string_content[i:i+segment_len]
-            
-            # Add format placeholder and value
-            format_parts.append("{" + str(len(values)) + "}")
-            values.append(f"'{segment}'")
-            
-            i += segment_len
-        
-        # Build the format expression
-        format_string = f"'{''.join(format_parts)}'" if len(format_parts) > 1 else f"'{format_parts[0]}'"
-        values_string = ','.join(values)
-        
-        return f"($({format_string} -f {values_string}))"
+        char_codes = [f"[char]0x{ord(c):02x}" for c in string_content]
+        return "(-join (" + " + ".join(char_codes) + "))"
     
     def _concatenation_technique(self, string_content: str, quote_char: str) -> str:
         """
@@ -248,25 +217,14 @@ class ObfuscateStrings(Transformer):
             Obfuscated string expression
         """
         parts = []
-        
-        # Split the string into random-sized chunks
         i = 0
         while i < len(string_content):
-            # Determine chunk size (1-5 characters)
-            chunk_size = min(random.randint(1, 5), len(string_content) - i)
+            chunk_size = min(random.randint(1, 3), len(string_content) - i)
             chunk = string_content[i:i+chunk_size]
-            
-            # Escape quotes if needed
-            if quote_char in chunk:
-                chunk = chunk.replace(quote_char, f"`{quote_char}")
-                
-            # Add the chunk
-            parts.append(f"{quote_char}{chunk}{quote_char}")
-            
+            part = "+".join([f"[char]0x{ord(c):02x}" for c in chunk])
+            parts.append(f"({part})")
             i += chunk_size
-        
-        # Join the parts with concatenation operators
-        return "(" + " + ".join(parts) + ")"
+        return "(-join (" + " + ".join(parts) + "))"
     
     def _char_array_technique(self, string_content: str) -> str:
         """
@@ -278,11 +236,13 @@ class ObfuscateStrings(Transformer):
         Returns:
             Obfuscated string expression
         """
-        # Convert to character array
-        char_array = [f"'{c}'" if c != "'" else "'`'''" for c in string_content]
-        
-        # Join the array
-        return f"([char[]]({','.join(char_array)}) -join '')"
+        # Convert to character array, escaping single quotes correctly
+        char_elements = []
+        for c in string_content:
+            # Convert each character to [char]0xXX format
+            hex_code = f"{ord(c):02x}"
+            char_elements.append(f"[char]0x{hex_code}")
+        return "(-join @(" + ",".join(char_elements) + "))"
     
     def _hex_encode_technique(self, string_content: str) -> str:
         """
@@ -295,12 +255,12 @@ class ObfuscateStrings(Transformer):
             PowerShell expression to reconstruct the segment from hex
         """
         # Encode the segment to hexadecimal
-        hex_seg = string_content.encode('utf-8').hex()
-        
-        # Create a PowerShell expression that rebuilds the string from hex values
-        rebuilt = '+'.join(f'[char](0x{hex_seg[i:i+2]})' for i in range(0, len(hex_seg), 2))
-        return f"({rebuilt})"
-    
+        utf16_bytes = string_content.encode('utf-16le')
+        if len(utf16_bytes) % 2 != 0:
+            utf16_bytes += b'\x00'  # Pad to even length
+        hex_values = [f"0x{byte:02x}" for byte in utf16_bytes]
+        return "([System.Text.Encoding]::Unicode.GetString([byte[]]@({})))".format(",".join(hex_values))
+
     def _mixed_technique(self, string_content: str, quote_char: str) -> str:
         """
         Obfuscate a string using a mix of techniques.
@@ -313,28 +273,19 @@ class ObfuscateStrings(Transformer):
             Obfuscated string expression
         """
         # Split into 2-3 main parts
-        num_parts = random.randint(2, min(3, len(string_content)))
-        part_size = len(string_content) // num_parts
-        
+        num_parts = random.randint(2, min(4, len(string_content)))
+        split_points = sorted(random.sample(range(1, len(string_content)), num_parts - 1))
+        split_points = [0] + split_points + [len(string_content)]
         parts = []
-        for i in range(num_parts):
-            start_idx = i * part_size
-            end_idx = len(string_content) if i == num_parts - 1 else (i + 1) * part_size
-            part = string_content[start_idx:end_idx]
-            
-            # Apply a random technique to each part
-            technique = random.randint(1, 4)
-            if technique == 1 and len(part) > 1:
-                parts.append(self._format_operator_technique(part))
-            elif technique == 2:
-                parts.append(self._concatenation_technique(part, quote_char))
-            elif technique == 3:
-                parts.append(self._char_array_technique(part))
-            else:
-                parts.append(self._hex_encode_technique(part))
-        
-        # Join the parts
-        return "(" + " + ".join(parts) + ")"
+        for i in range(len(split_points) - 1):
+            part = string_content[split_points[i]:split_points[i+1]]
+            technique = random.choice([
+                self._char_array_technique,
+                lambda x: self._concatenation_technique(x, quote_char)
+                #self._hex_encode_technique # Too many VT detections
+            ])
+            parts.append(technique(part))
+        return "(-join (" + " + ".join(parts) + "))"
     
     def _split_string(self, string: str, num_parts: int) -> List[str]:
         """
@@ -347,31 +298,35 @@ class ObfuscateStrings(Transformer):
         Returns:
             List of string parts
         """
-        if num_parts <= 1:
-            return [string]
-            
-        # For shorter strings, split more evenly
-        if len(string) < 10:
-            # Calculate approximate segment size
-            seg_size = max(1, len(string) // num_parts)
-            
-            # Split the string into segments
-            parts = []
-            for i in range(0, len(string), seg_size):
-                parts.append(string[i:i+seg_size])
-            
-            return parts
-            
-        # Generate random split points
-        string_len = len(string)
-        split_points = sorted(random.sample(range(1, string_len), num_parts - 1))
-        
-        # Split the string at those points
         parts = []
-        start = 0
-        for point in split_points:
-            parts.append(string[start:point])
-            start = point
-        parts.append(string[start:])
-        
-        return parts 
+        current = []
+        in_escape = False
+        for c in string:
+            if c == '\\' and not in_escape:
+                in_escape = True
+            else:
+                in_escape = False
+            current.append(c)
+            if len(current) >= 3 and not in_escape:
+                parts.append(''.join(current))
+                current = []
+        if current:
+            parts.append(''.join(current))
+        return parts
+    
+    def _is_attribute_argument(self, content: str, pos: int) -> bool:
+        """Skip strings in parameter attributes"""
+        context = content[max(0, pos-100):pos+100]
+        return any(
+            re.search(rf'\[{attr}\s*\(', context)
+            for attr in ['alias', 'ValidateSet', 'Parameter']
+        )
+
+    def _contains_variables(self, string_content: str) -> bool:
+        """Detect PowerShell variables more accurately"""
+        # check for escape sequences like `n, `t, etc.
+        if re.search(r'`[a-zA-Z]', string_content):
+            return True
+        if string_content.startswith('"'):
+            return bool(re.search(r'\$[\w{]', string_content))
+        return False

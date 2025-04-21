@@ -13,7 +13,7 @@ from pyfuscator.transformers.powershell import (
     RenameIdentifiers as PSRenameIdentifiers,
     ObfuscateStrings, EncodeCommands, CommandTokenizer,
     InsertJunkCode as PSInsertJunkCode, UseDotNetMethods,
-    SecureStringTransformer, AlternateDataStreams,
+    SecureStringTransformer,
     RemoveComments, LowerEntropy, Base64Encoder,
     PowerShellScriptEncryptor, PowerShellObfuscator
 )
@@ -37,7 +37,6 @@ __all__ = [
     'PSInsertJunkCode',
     'UseDotNetMethods',
     'SecureStringTransformer',
-    'AlternateDataStreams',
     'RemoveComments',
     'LowerEntropy',
     'Base64Encoder',

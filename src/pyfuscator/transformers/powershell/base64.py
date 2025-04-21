@@ -7,6 +7,7 @@ import random
 
 from pyfuscator.core.transformer import Transformer
 from pyfuscator.log_utils import logger
+from pyfuscator.core.utils import random_name
 
 class Base64Encoder(Transformer):
     """Transformer that encodes portions of a PowerShell script using Base64."""
@@ -346,13 +347,16 @@ class Base64Encoder(Transformer):
             PowerShell launcher script that decodes and executes the original script
         """
         encoded = self._encode_to_base64(script)
+        script_encoded = f"${random_name()}"
+        script_bytes = f"${random_name()}"
+        script_text = f"${random_name()}"
         
         # Create a launcher script
         launcher = (
-            "$scriptEncoded = '{0}'\n"
-            "$scriptBytes = [System.Convert]::FromBase64String($scriptEncoded)\n"
-            "$scriptText = [System.Text.Encoding]::Unicode.GetString($scriptBytes)\n"
-            "Invoke-Expression $scriptText"
-        ).format(encoded)
+            f"{script_encoded}        = '{encoded}'\n"
+            f"{script_bytes}  = [          System.Convert ]::FromBase64String(        {script_encoded}    )\n"
+            f"{script_text}          = [    System.Text.Encoding               ]::Unicode.GetString( {script_bytes}   )\n"
+            f"IEX                            {script_text}"
+        )
         
         return launcher 

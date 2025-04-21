@@ -8,7 +8,6 @@ from pyfuscator.transformers.powershell.concat import CommandTokenizer
 from pyfuscator.transformers.powershell.junk import InsertJunkCode
 from pyfuscator.transformers.powershell.securestring import SecureStringTransformer
 from pyfuscator.transformers.powershell.dotnet import UseDotNetMethods
-from pyfuscator.transformers.powershell.ads import AlternateDataStreams
 from pyfuscator.transformers.powershell.remove_comments import RemoveComments
 from pyfuscator.transformers.powershell.lower_entropy import LowerEntropy
 from pyfuscator.transformers.powershell.base64 import Base64Encoder
@@ -23,7 +22,6 @@ __all__ = [
     'InsertJunkCode',
     'UseDotNetMethods',
     'SecureStringTransformer',
-    'AlternateDataStreams',
     'RemoveComments',
     'LowerEntropy',
     'Base64Encoder',

@@ -353,7 +353,7 @@ def powershell_command(
     string_divide: bool = typer.Option(
         False, "-sd", "--string-divide", help="Divide strings into concatenated parts"
     ),
-    script_encrypt: bool = typer.Option(
+    script_encrypt: int = typer.Option(
         False, "-e", "--encrypt", help="Encrypt the entire script with SecureString"
     ),
     base64: bool = typer.Option(
@@ -361,9 +361,6 @@ def powershell_command(
     ),
     base64_full: bool = typer.Option(
         False, "--base64-full", help="Encode the entire script with Base64"
-    ),
-    ads: bool = typer.Option(
-        False, "--ads", help="(Experimental) Store scripts in Alternate Data Streams (Windows only)"
     ),
     lower_entropy: bool = typer.Option(
         False, "-l", "--lower-entropy", help="Apply entropy reduction techniques"
@@ -458,7 +455,6 @@ def powershell_command(
             dotnet_methods=dotnet_methods,
             base64_full=base64_full,
             script_encrypt=script_encrypt,
-            use_ads=ads,
             verbose=verbose
         )
 
@@ -501,8 +497,6 @@ def powershell_command(
                 tech_applied.append("script encryption")
             if lower_entropy:
                 tech_applied.append("lower entropy transformation")
-            if ads:
-                tech_applied.append("alternate data streams")
 
         tech_str = ", ".join(tech_applied)
         console.print(f"[green]✓ Successfully applied:[/] {tech_str}")

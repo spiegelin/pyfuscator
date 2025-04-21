@@ -12,11 +12,15 @@ from pyfuscator.transformers.powershell.concat import CommandTokenizer
 from pyfuscator.transformers.powershell.junk import InsertJunkCode
 from pyfuscator.transformers.powershell.dotnet import UseDotNetMethods
 from pyfuscator.transformers.powershell.securestring import SecureStringTransformer
-from pyfuscator.transformers.powershell.ads import AlternateDataStreams
 from pyfuscator.transformers.powershell.remove_comments import RemoveComments
 from pyfuscator.transformers.powershell.lower_entropy import LowerEntropy
 from pyfuscator.transformers.powershell.base64 import Base64Encoder
 from pyfuscator.transformers.powershell.script_encryptor import PowerShellScriptEncryptor
+from pyfuscator.encryption.methods import (
+    encryption_method_1, encryption_method_2, 
+    encryption_method_3, encryption_method_4,
+    encryption_method_5
+)
 
 class PowerShellObfuscator:
     """Main class for PowerShell obfuscation."""
@@ -50,16 +54,12 @@ class PowerShellObfuscator:
         self.junk_code_inserter = None
         self.dotnet_methods = None
         self.secure_string = None
-        self.ads_utility = None
         self.comment_remover = None
         self.entropy_reducer = None
         self.base64_encoder = None
         self.script_encryptor = None
         self.string_divider = None
         
-        # Initialize ADS utility if needed
-        if self.config.get('use_ads', False):
-            self.ads_utility = AlternateDataStreams()
 
     def obfuscate(self, input_code):
         """Obfuscate PowerShell code.
@@ -374,20 +374,21 @@ class PowerShellObfuscator:
                     self.logger.success(f"Base64 encoded {encoded_blocks} script blocks and {encoded_cmds} commands")
         
         # 10. Apply script encryption if requested
-        if self.config.get('script_encrypt', False):
+        encryption_layers = self.config.get('script_encrypt', 0)
+        if encryption_layers > 0:
             if is_verbose:
-                self.logger.info("Applying script encryption")
-                self.logger.info("Encrypting the entire script with secure methods")
-                
-            self.script_encryptor = PowerShellScriptEncryptor()
-            self.obfuscated_code = self.script_encryptor.transform(self.obfuscated_code)
-            self._update_stats(self.script_encryptor.get_stats())
-            obfuscation_applied = True
+                self.logger.success(f"Applying {encryption_layers} layers of encryption")
+
+            # Apply specified number of encryption layers
+            self.obfuscated_code = self._apply_encryption_layers(self.obfuscated_code, encryption_layers)
+
+            # Update stats
+            self.stats['encryption_layers'] = encryption_layers
             
-            if is_verbose:
-                self.logger.success("Successfully encrypted the entire script")
-                enc_type = self.stats.get('encryption_type', 'standard')
-                self.logger.info(f"Encryption type: {enc_type}")
+            # Log success
+            self.logger.success(f"Applied {encryption_layers} layers of encryption")
+                
+            obfuscation_applied = True
         
         # 11. Apply full Base64 encoding if requested
         if self.config.get('base64_full', False):
@@ -440,275 +441,49 @@ class PowerShellObfuscator:
             self.logger.info(f"Total obfuscation processing time: {processing_time:.2f} seconds")
         
         return self.obfuscated_code
+    
+    def _apply_encryption_layers(self, code: str, layers: int) -> str:
+        """
+        Apply multiple layers of encryption to code.
+        
+        Args:
+            code: The code to encrypt
+            layers: Number of encryption layers to apply
+            
+        Returns:
+            Encrypted code
+        """
+        for i in range(layers):
+            method = random.randint(2, 4)
+            method_name = ["Linear Congruence","XOR with Shuffle Key","RSA-like","Key Array XOR","Triple Layer Cipher"]
+            if self.config.get('verbose', False):
+                self.logger.info(f"Applying encryption method {method_name[method-1]} (layer {i+1}/{layers})")
+            
+            if method == 1: # Division by zero? -> Avoid
+                code = encryption_method_1(code, "powershell")
+            if method == 2:
+                code = encryption_method_2(code, "powershell")
+            elif method == 3 and i < 3: # If more than 3 layers, use other methods, this is super slow
+                code = encryption_method_3(code, "powershell")
+            elif method == 4:
+                code = encryption_method_4(code, "powershell")
+            else: # not yet supported
+                code = encryption_method_5(code, "powershell")
+            
+            if self.config.get('verbose', False):
+                self.logger.info(f"Layer {i+1} encryption complete, code size: {len(code)} bytes")
+            
+        return code
 
     def _update_stats(self, stats):
         self.stats.update(stats)
-
-    def obfuscate_with_ads(self, content: str) -> str:
-        """
-        Apply obfuscation transformers to PowerShell script content.
-        
-        Args:
-            content: The PowerShell script content
-            
-        Returns:
-            Obfuscated PowerShell script
-        """
-        if not content.strip():
-            logger.warning("Empty PowerShell script, nothing to obfuscate")
-            return content
-            
-        transformed = content
-        is_verbose = self.config.get('verbose', False)
-        
-        # Apply comment removal first if specified
-        if self.config.get('remove_comments', True):
-            logger.info("Removing comments from PowerShell script")
-            if is_verbose:
-                logger.info("Looking for single-line (#) and multi-line (<# #>) comments to remove")
-                original_length = len(transformed)
-                
-            comments_remover = RemoveComments()
-            transformed = comments_remover.transform(transformed)
-            
-            if is_verbose:
-                new_length = len(transformed)
-                reduction = original_length - new_length
-                percentage = (reduction / original_length) * 100 if original_length > 0 else 0
-                logger.info(f"Removed {comments_remover.stats.get('removed_comment_count', 0)} comments, "
-                            f"{comments_remover.stats.get('removed_comment_chars', 0)} characters ({percentage:.1f}% size reduction)")
-                logger.success("Removed comments from PowerShell script")
-        
-        # Apply Lower Entropy transformation early if specified
-        if self.config.get('lower_entropy', False):
-            logger.info("Applying lower entropy transformation to PowerShell script")
-            if is_verbose:
-                logger.info("Adding random whitespace, substituting aliases, and reordering code blocks")
-                
-            entropy_reducer = LowerEntropy()
-            transformed = entropy_reducer.transform(transformed)
-            
-            if is_verbose:
-                logger.info(f"Added {entropy_reducer.stats.get('spaces_inserted', 0)} random spaces, "
-                            f"substituted {entropy_reducer.stats.get('aliases_substituted', 0)} PowerShell aliases, "
-                            f"reordered {entropy_reducer.stats.get('blocks_reordered', 0)} code blocks")
-                logger.success("Applied lower entropy transformation to PowerShell script")
-        
-        # Apply identifier renaming if specified
-        if self.config.get('rename_identifiers', False):
-            logger.info("Renaming identifiers in PowerShell script")
-            if is_verbose:
-                logger.info("Renaming variables, functions, and parameters with random names")
-                
-            renamer = RenameIdentifiers()
-            transformed = renamer.transform(transformed)
-            
-            if is_verbose:
-                logger.info(f"Renamed {renamer.stats.get('variables_renamed', 0)} variables, "
-                            f"{renamer.stats.get('functions_renamed', 0)} functions, "
-                            f"and {renamer.stats.get('parameters_renamed', 0)} parameters")
-                logger.success("Renamed identifiers in PowerShell script")
-        
-        # Apply string obfuscation if specified
-        if self.config.get('secure_strings', False):
-            logger.info("Obfuscating strings in PowerShell script")
-            if is_verbose:
-                logger.info("Using techniques like string splitting, format operators, character arrays, and hex encoding")
-                
-            string_obfuscator = ObfuscateStrings()
-            transformed = string_obfuscator.transform(transformed)
-            
-            if is_verbose:
-                logger.info(f"Obfuscated {string_obfuscator.stats.get('strings_obfuscated', 0)} string literals with mixed techniques")
-                logger.success("Obfuscated strings in PowerShell script")
-        
-        # Apply SecureString obfuscation
-        # This is a PowerShell-specific technique with no direct Python equivalent
-        if self.config.get('secure_strings', False):
-            logger.info("Applying SecureString obfuscation to PowerShell script")
-            if is_verbose:
-                logger.info("Using PowerShell SecureString to protect string values")
-                
-            secure_obfuscator = SecureStringTransformer()
-            transformed = secure_obfuscator.transform(transformed)
-            
-            if is_verbose:
-                logger.info(f"Protected {secure_obfuscator.stats.get('secure_strings_count', 0)} strings with SecureString")
-                logger.success("Applied SecureString obfuscation to PowerShell script")
-                
-        # Apply .NET method-based obfuscation
-        # This corresponds to dynamic execution in Python scripts
-        if self.config.get('dotnet_methods', False):
-            logger.info("Applying .NET method obfuscation to PowerShell script")
-            if is_verbose:
-                logger.info("Replacing standard PowerShell operations with .NET method equivalents")
-                
-            dotnet_transformer = UseDotNetMethods()
-            transformed = dotnet_transformer.transform(transformed)
-            
-            if is_verbose:
-                logger.info(f"Replaced {dotnet_transformer.stats.get('dotnet_substitutions', 0)} operations with .NET methods")
-                logger.success("Applied .NET method obfuscation to PowerShell script")
-        
-        # Apply command tokenization
-        # This corresponds to import obfuscation in Python scripts
-        if self.config.get('tokenize_commands', False):
-            logger.info("Tokenizing commands in PowerShell script")
-            if is_verbose:
-                logger.info("Breaking commands into tokens and reconstructing them at runtime")
-                
-            tokenizer = CommandTokenizer()
-            transformed = tokenizer.transform(transformed)
-            
-            if is_verbose:
-                logger.info(f"Tokenized {tokenizer.stats.get('tokenized_commands', 0)} commands and "
-                            f"{tokenizer.stats.get('tokenized_functions', 0)} functions")
-                logger.success("Tokenized commands in PowerShell script")
-        
-        # Apply Base64 encoding if specified
-        if self.config.get('base64_encode', False) or self.config.get('base64_commands', False) or self.config.get('base64_full', False):
-            logger.info("Applying Base64 encoding to PowerShell script")
-            
-            # Configure the encoder
-            encode_blocks = self.config.get('base64_encode', False)
-            encode_full = self.config.get('base64_full', False)
-            encode_cmds = self.config.get('base64_commands', False)
-            
-            if is_verbose:
-                encoding_types = []
-                if encode_blocks:
-                    encoding_types.append("script blocks")
-                if encode_full:
-                    encoding_types.append("full script")
-                if encode_cmds:
-                    encoding_types.append("individual commands")
-                logger.info(f"Encoding {', '.join(encoding_types)} with Base64")
-            
-            # Create the encoder with the correct configuration
-            base64_encoder = Base64Encoder(
-                encode_blocks=encode_blocks,
-                encode_full=encode_full,
-                encode_individual=encode_cmds
-            )
-            
-            # Apply the transformation
-            prev_code = transformed
-            transformed = base64_encoder.transform(transformed)
-            
-            # If nothing was encoded and full script encoding was requested, force it
-            if prev_code == transformed and encode_full:
-                if is_verbose:
-                    logger.info("Forcing full script Base64 encoding")
-                transformed = base64_encoder._encode_full_script(prev_code)
-                base64_encoder.stats["encoded_full_script"] = True
-            
-            # If nothing was encoded but blocks or commands encoding was requested, 
-            # try a fallback approach to ensure something gets encoded
-            if prev_code == transformed and (encode_blocks or encode_cmds):
-                if is_verbose:
-                    logger.info("No commands found for encoding, applying fallback encoding")
-                
-                # Create a simple fallback that encodes a small part of the script
-                lines = transformed.split('\n')
-                if len(lines) > 5:
-                    # Find some content to encode (non-empty lines)
-                    content_lines = [i for i, line in enumerate(lines) if line.strip() and not line.strip().startswith('#')]
-                    if content_lines:
-                        # Select a random line to encode
-                        line_idx = random.choice(content_lines)
-                        line = lines[line_idx]
-                        
-                        # Only encode if the line isn't too complex
-                        if len(line) < 100 and not re.search(r'function|param\s*\(|\{|\}|\$\(|\$\{', line):
-                            # Wrap it as a simple Write-Output for Base64 encoding
-                            encoded_line = base64_encoder._encode_base64(f'Write-Output "{line.strip()}"')
-                            lines[line_idx] = encoded_line
-                            transformed = '\n'.join(lines)
-                            base64_encoder.stats["commands_encoded"] = 1
-                            
-                            if is_verbose:
-                                logger.info("Applied fallback Base64 encoding to ensure some content is encoded")
-            
-            if is_verbose:
-                if base64_encoder.stats.get('encoded_full_script', False):
-                    logger.success("Encoded entire script with Base64")
-                else:
-                    logger.success(f"Base64 encoded {base64_encoder.stats.get('blocks_encoded', 0)} script blocks and "
-                                  f"{base64_encoder.stats.get('commands_encoded', 0)} commands")
-                    
-        # Apply junk code insertion if specified
-        if self.config.get('junk_code', 0) > 0:
-            junk_count = self.config.get('junk_code', 0)
-            logger.info(f"Inserting {junk_count} junk statements into PowerShell script")
-            if is_verbose:
-                logger.info("Inserting meaningless code blocks to confuse analysis")
-                
-            junk_inserter = InsertJunkCode(num_statements=junk_count)
-            transformed = junk_inserter.transform(transformed)
-            
-            if is_verbose:
-                junk_added = junk_inserter.stats.get('junk_statements_added', 0)
-                junk_percentage = (junk_added / junk_count) * 100
-                logger.info(f"Added {junk_added} junk statements ({junk_percentage:.1f}% of requested)")
-                logger.success(f"Inserted junk code into PowerShell script")
-        
-        # Apply ADS storage if configured (after all other transformations)
-        if self.ads_utility and self.config.get('use_ads', False):
-            logger.info("Preparing script for Alternate Data Streams storage")
-            if is_verbose:
-                logger.info("Creating NTFS Alternate Data Stream to hide the script content")
-                
-            # The return here is a loader script that will extract from ADS
-            try:
-                # Create temporary output with transformed content
-                import tempfile
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.ps1') as temp_file:
-                    temp_file.write(transformed.encode('utf-8'))
-                    temp_path = temp_file.name
-                
-                # Use ADS utility to create a base file and store script in ADS
-                base_file, loader_script = self.ads_utility.store_in_ads(temp_path)
-                
-                # Return the loader script
-                transformed = loader_script
-                
-                if is_verbose:
-                    logger.info(f"Script content hidden in alternate data stream of {base_file}")
-                logger.success("Script prepared for Alternate Data Streams storage")
-            except Exception as e:
-                logger.error(f"Failed to prepare for ADS storage: {str(e)}")
-                logger.warning("Continuing with standard obfuscation")
-                
-        # Apply script encryption if specified - always apply last
-        if self.config.get('script_encrypt', False):
-            logger.info("Encrypting PowerShell script")
-            if is_verbose:
-                logger.info("Using SecureString to encrypt the entire script with a random key")
-                
-            script_encryptor = PowerShellScriptEncryptor(
-                generate_launcher=self.config.get('generate_launcher', True)
-            )
-            transformed = script_encryptor.transform(transformed)
-            
-            if is_verbose:
-                key_length = script_encryptor.stats.get("encryption_key_length", 0)
-                logger.info(f"Encrypted script with a {key_length * 8}-bit key and generated a launcher")
-                logger.success("Encrypted PowerShell script")
-        
-        if is_verbose:
-            original_size = len(content)
-            final_size = len(transformed)
-            growth = ((final_size - original_size) / original_size) * 100
-            logger.info(f"Obfuscation complete. Script size changed from {original_size:,} to {final_size:,} bytes ({growth:+.1f}%)")
-            
-        return transformed
 
     def _tokenize_command(self, command: str) -> str:
         """Obfuscate PowerShell commands using token splitting."""
         # Split the command into parts
         parts = re.split(r'(\W+)', command)
         
-        # New: Handle command arguments properly
+        # Handle command arguments properly
         if ' ' in command:
             cmd, args = command.split(' ', 1)
             obfuscated_cmd = self._obfuscate_command_name(cmd)

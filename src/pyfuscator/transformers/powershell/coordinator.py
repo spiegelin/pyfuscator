@@ -5,7 +5,7 @@ import time
 import re
 import random
 
-from pyfuscator.log_utils import logger
+from pyfuscator.log_utils import logger, setup_logger
 from pyfuscator.transformers.powershell.identifiers import RenameIdentifiers
 from pyfuscator.transformers.powershell.strings import ObfuscateStrings
 from pyfuscator.transformers.powershell.concat import CommandTokenizer
@@ -15,8 +15,7 @@ from pyfuscator.transformers.powershell.securestring import SecureStringTransfor
 from pyfuscator.transformers.powershell.remove_comments import RemoveComments
 from pyfuscator.transformers.powershell.lower_entropy import LowerEntropy
 from pyfuscator.transformers.powershell.base64 import Base64Encoder
-from pyfuscator.transformers.powershell.script_encryptor import PowerShellScriptEncryptor
-from pyfuscator.encryption.methods import (
+from pyfuscator.core.methods import (
     encryption_method_1, encryption_method_2, 
     encryption_method_3, encryption_method_4,
     encryption_method_5
@@ -42,7 +41,8 @@ class PowerShellObfuscator:
                 '__getitem__': lambda self, key: original_config[key]
             })()
         
-        self.logger = logger
+        # Configure logger for this instance
+        self.logger = setup_logger(verbose=self.config.get('verbose', False))
         self.original_code = None
         self.obfuscated_code = None
         self.stats = {}
@@ -52,8 +52,8 @@ class PowerShellObfuscator:
         self.string_obfuscator = None
         self.command_tokenizer = None
         self.junk_code_inserter = None
-        self.dotnet_methods = None
-        self.secure_string = None
+        #self.dotnet_methods = None
+        #self.secure_string = None
         self.comment_remover = None
         self.entropy_reducer = None
         self.base64_encoder = None
@@ -117,11 +117,10 @@ class PowerShellObfuscator:
             self.config.get('junk_code', 0) == 200 and
             self.config.get('tokenize_commands', False) and
             self.config.get('string_divide', False) and
-            self.config.get('base64_encode', False) and
-            self.config.get('lower_entropy', False) and
-            not self.config.get('base64_full', False) and
-            not self.config.get('base64_commands', False)
-        ):
+            #self.config.get('base64_encode', False) and
+            self.config.get('lower_entropy', False) #and
+            #not self.config.get('base64_full', False)
+            ):
             # Using --all option, apply techniques in the required order
             if is_verbose:
                 self.logger.info("Using --all option with specified technique order")
@@ -234,32 +233,32 @@ class PowerShellObfuscator:
                 self.logger.success(f"Obfuscated {self.stats.get('strings_obfuscated', 0)} string literals")
         
         # 5. Apply dot net method obfuscation if requested
-        if self.config.get('dotnet_methods', False):
-            if is_verbose:
-                self.logger.info("Applying .NET method obfuscation")
-                self.logger.info("Converting standard PowerShell commands to .NET method equivalents")
+        #if self.config.get('dotnet_methods', False):
+        #    if is_verbose:
+        #        self.logger.info("Applying .NET method obfuscation")
+        #        self.logger.info("Converting standard PowerShell commands to .NET method equivalents")
                 
-            self.dotnet_methods = UseDotNetMethods()
-            self.obfuscated_code = self.dotnet_methods.transform(self.obfuscated_code)
-            self._update_stats(self.dotnet_methods.get_stats())
-            obfuscation_applied = True
+        #    self.dotnet_methods = UseDotNetMethods()
+        #    self.obfuscated_code = self.dotnet_methods.transform(self.obfuscated_code)
+        #    self._update_stats(self.dotnet_methods.get_stats())
+        #    obfuscation_applied = True
             
-            if is_verbose:
-                self.logger.success(f"Converted {self.stats.get('dotnet_methods_applied', 0)} commands to .NET equivalents")
+        #    if is_verbose:
+        #        self.logger.success(f"Converted {self.stats.get('dotnet_methods_applied', 0)} commands to .NET equivalents")
         
         # 6. Apply secure string obfuscation if requested
-        if self.config.get('secure_strings', False):
-            if is_verbose:
-                self.logger.info("Applying SecureString obfuscation")
-                self.logger.info("Converting string literals to SecureString objects for added protection")
+        #if self.config.get('secure_strings', False):
+        #    if is_verbose:
+        #        self.logger.info("Applying SecureString obfuscation")
+        #        self.logger.info("Converting string literals to SecureString objects for added protection")
                 
-            self.secure_string = SecureStringTransformer()
-            self.obfuscated_code = self.secure_string.transform(self.obfuscated_code)
-            self._update_stats(self.secure_string.get_stats())
-            obfuscation_applied = True
+        #    self.secure_string = SecureStringTransformer()
+        #    self.obfuscated_code = self.secure_string.transform(self.obfuscated_code)
+        #    self._update_stats(self.secure_string.get_stats())
+        #    obfuscation_applied = True
             
-            if is_verbose:
-                self.logger.success(f"Obfuscated {self.stats.get('securestrings_applied', 0)} strings using SecureString")
+        #    if is_verbose:
+        #        self.logger.success(f"Obfuscated {self.stats.get('securestrings_applied', 0)} strings using SecureString")
         
         # 7. Apply junk code if requested
         if self.config.get('junk_code', 0) > 0:
@@ -297,31 +296,31 @@ class PowerShellObfuscator:
                 self.logger.success(f"Tokenized {tokenized} PowerShell commands")
         
         # 9. Apply Base64 encoding if specified
-        if self.config.get('base64_encode', False) or self.config.get('base64_commands', False) or self.config.get('base64_full', False):
-            if is_verbose:
-                self.logger.info("Applying Base64 encoding to PowerShell script")
+        #if self.config.get('base64_encode', False) or self.config.get('base64_commands', False) or self.config.get('base64_full', False):
+        #    if is_verbose:
+        #        self.logger.info("Applying Base64 encoding to PowerShell script")
             
             # Configure the encoder
-            encode_blocks = self.config.get('base64_encode', False)
-            encode_full = self.config.get('base64_full', False)
-            encode_cmds = self.config.get('base64_commands', False)
+            #encode_blocks = self.config.get('base64_encode', False)
+            #encode_full = self.config.get('base64_full', False)
+            #encode_cmds = self.config.get('base64_commands', False)
             
-            if is_verbose:
-                encoding_types = []
-                if encode_blocks:
-                    encoding_types.append("script blocks")
-                if encode_full:
-                    encoding_types.append("full script")
-                if encode_cmds:
-                    encoding_types.append("individual commands")
-                self.logger.info(f"Encoding {', '.join(encoding_types)} with Base64")
+            #if is_verbose:
+            #    encoding_types = []
+            #    if encode_blocks:
+            #        encoding_types.append("script blocks")
+            #    if encode_full:
+            #        encoding_types.append("full script")
+            #    if encode_cmds:
+            #        encoding_types.append("individual commands")
+            #    self.logger.info(f"Encoding {', '.join(encoding_types)} with Base64")
             
             # Create the encoder with the correct configuration
-            base64_encoder = Base64Encoder(
-                encode_blocks=encode_blocks,
-                encode_full=encode_full,
-                encode_individual=encode_cmds
-            )
+            #base64_encoder = Base64Encoder(
+            #    encode_blocks=encode_blocks,
+            #    encode_full=encode_full,
+            #    encode_individual=encode_cmds
+            #)
             
             # Apply the transformation
             prev_code = self.obfuscated_code
@@ -403,27 +402,6 @@ class PowerShellObfuscator:
             if is_verbose:
                 self.logger.success("Successfully Base64 encoded the entire script")
         
-        # 12. Apply ADS storage if requested (Windows only)
-        if self.config.get('use_ads', False):
-            if is_verbose:
-                self.logger.info("Preparing Alternate Data Stream storage (Windows only)")
-                self.logger.info("This technique uses NTFS file streams to hide script content")
-                
-            if not self.ads_utility:
-                self.ads_utility = AlternateDataStreams()
-            
-            ads_code = self.ads_utility.prepare_ads_script(self.obfuscated_code)
-            # Only replace code if ads preparation was successful
-            if ads_code:
-                self.obfuscated_code = ads_code
-                self.stats["used_ads"] = True
-                
-                if is_verbose:
-                    self.logger.success("Prepared script for Alternate Data Stream storage")
-            else:
-                if is_verbose:
-                    self.logger.warning("ADS preparation failed - this feature requires Windows")
-        
         # If nothing was applied, the original code is returned
         if not obfuscation_applied:
             self.logger.warning("No obfuscation techniques were applied")
@@ -478,43 +456,6 @@ class PowerShellObfuscator:
     def _update_stats(self, stats):
         self.stats.update(stats)
 
-    def _tokenize_command(self, command: str) -> str:
-        """Obfuscate PowerShell commands using token splitting."""
-        # Split the command into parts
-        parts = re.split(r'(\W+)', command)
-        
-        # Handle command arguments properly
-        if ' ' in command:
-            cmd, args = command.split(' ', 1)
-            obfuscated_cmd = self._obfuscate_command_name(cmd)
-            return f"{obfuscated_cmd} {args}"  # Preserve arguments after space
-        else:
-            return self._obfuscate_command_name(command)
-
-    def _obfuscate_command_name(self, cmd: str) -> str:
-        """Obfuscate individual command names with multiple methods."""
-        # Randomly select obfuscation method
-        method = random.choice([
-            self._string_concat_method,
-            self._char_array_method,
-            self._script_block_method
-        ])
-        return method(cmd)
-
-    def _char_array_method(self, cmd: str) -> str:
-        """Obfuscate using char array with proper invocation."""
-        chars = [f"'{c}'" for c in cmd]
-        return f"&([char[]]({','.join(chars)})-join'')"
-
-    def _script_block_method(self, cmd: str) -> str:
-        """Obfuscate using script blocks with proper invocation."""
-        parts = []
-        for i, c in enumerate(cmd):
-            var_name = f"$p{i}_{random_name(4)}"
-            parts.append(f"{var_name}='{c}'")
-        parts_str = ';'.join(parts)
-        return f"& ({{{parts_str};(& (${{0}}))}} -f ({'+'.join([p.split('=')[0] for p in parts])}))"
-
     def _obfuscate_ordered(self, input_code, is_verbose):
         """Apply obfuscation techniques in the specific order required by the -a option.
         
@@ -537,8 +478,8 @@ class PowerShellObfuscator:
         if is_verbose:
             self.logger.info("Applying standard obfuscation sequence in exact order:")
             self.logger.info("1. Comment removal → 2. Identifier renaming → 3. Junk code insertion → "
-                           "4. Lower entropy → 5. Command tokenization → 6. String division → "
-                           "7. Base64 encoding")
+                           "4. Lower entropy → 5. Command tokenization → 6. String division")
+                           #"→ 7. Base64 encoding")
             self.logger.info(f"Initial script size: {len(input_code)} bytes")
             func_count = len(re.findall(r'(?i)function\s+([a-zA-Z0-9_-]+)', input_code))
             var_count = len(re.findall(r'\$([a-zA-Z0-9_]+)\s*=', input_code))
@@ -549,7 +490,7 @@ class PowerShellObfuscator:
         
         # 1. Comment removal
         if is_verbose:
-            self.logger.info("STEP 1/7: Removing comments from PowerShell code")
+            self.logger.info("STEP 1/6: Removing comments from PowerShell code")
             self.logger.info("Looking for single-line (#) and multi-line (<# #>) comments to remove")
             original_length = len(processed_code)
             
@@ -561,11 +502,11 @@ class PowerShellObfuscator:
             new_length = len(processed_code)
             reduction = original_length - new_length
             percentage = (reduction / original_length) * 100 if original_length > 0 else 0
-            self.logger.success(f"STEP 1/7 COMPLETE: Removed {self.stats.get('removed_comment_count', 0)} comments, {reduction} bytes ({percentage:.1f}% reduction)")
+            self.logger.success(f"STEP 1/6 COMPLETE: Removed {self.stats.get('removed_comment_count', 0)} comments, {reduction} bytes ({percentage:.1f}% reduction)")
         
         # 2. Identifier renaming
         if is_verbose:
-            self.logger.info("STEP 2/7: Renaming variables and functions")
+            self.logger.info("STEP 2/6: Renaming variables and functions")
             self.logger.info("Scanning script for variables, functions, and parameters to rename")
             pre_rename_size = len(processed_code)
             func_pattern = r'(?i)function\s+([a-zA-Z0-9_-]+)'
@@ -583,12 +524,12 @@ class PowerShellObfuscator:
             size_diff = post_rename_size - pre_rename_size
             func_renamed = self.stats.get('functions_renamed', 0)
             var_renamed = self.stats.get('variables_renamed', 0)
-            self.logger.success(f"STEP 2/7 COMPLETE: Renamed {func_renamed} functions and {var_renamed} variables")
+            self.logger.success(f"STEP 2/6 COMPLETE: Renamed {func_renamed} functions and {var_renamed} variables")
             self.logger.info(f"Script size after renaming: {post_rename_size} bytes ({size_diff:+} bytes)")
         
         # 3. Junk code insertion
         if is_verbose:
-            self.logger.info("STEP 3/7: Inserting junk code statements (200)")
+            self.logger.info("STEP 3/6: Inserting junk code statements (200)")
             self.logger.info("Generating 200 random PowerShell statements to add obfuscation")
             pre_junk_size = len(processed_code)
             
@@ -601,12 +542,12 @@ class PowerShellObfuscator:
             size_increase = post_junk_size - pre_junk_size
             percentage = (size_increase / pre_junk_size) * 100 if pre_junk_size > 0 else 0
             actual_junk = self.stats.get('junk_statements_added', 200)
-            self.logger.success(f"STEP 3/7 COMPLETE: Added {actual_junk} junk statements")
+            self.logger.success(f"STEP 3/6 COMPLETE: Added {actual_junk} junk statements")
             self.logger.info(f"Script size after junk insertion: {post_junk_size} bytes (+{size_increase} bytes, {percentage:.1f}% increase)")
         
         # 4. Lower entropy transformation
         if is_verbose:
-            self.logger.info("STEP 4/7: Applying lower entropy transformation")
+            self.logger.info("STEP 4/6: Applying lower entropy transformation")
             self.logger.info("Adding random whitespace, substituting aliases, and reordering code blocks")
             pre_entropy_size = len(processed_code)
             
@@ -620,12 +561,12 @@ class PowerShellObfuscator:
             spaces = self.stats.get('spaces_inserted', 0)
             aliases = self.stats.get('aliases_substituted', 0)
             blocks = self.stats.get('blocks_reordered', 0)
-            self.logger.success(f"STEP 4/7 COMPLETE: Added {spaces} random spaces, substituted {aliases} aliases, reordered {blocks} code blocks")
+            self.logger.success(f"STEP 4/6 COMPLETE: Added {spaces} random spaces, substituted {aliases} aliases, reordered {blocks} code blocks")
             self.logger.info(f"Script size after entropy reduction: {post_entropy_size} bytes ({size_diff:+} bytes)")
         
         # 5. Command tokenization
         if is_verbose:
-            self.logger.info("STEP 5/7: Tokenizing PowerShell commands")
+            self.logger.info("STEP 5/6: Tokenizing PowerShell commands")
             self.logger.info("Breaking commands into parts to evade signature-based detection")
             pre_token_size = len(processed_code)
             
@@ -640,12 +581,12 @@ class PowerShellObfuscator:
             post_token_size = len(processed_code)
             size_diff = post_token_size - pre_token_size
             tokenized = self.stats.get('commands_tokenized', 0) + self.stats.get('functions_tokenized', 0)
-            self.logger.success(f"STEP 5/7 COMPLETE: Tokenized {tokenized} PowerShell commands/functions")
+            self.logger.success(f"STEP 5/6 COMPLETE: Tokenized {tokenized} PowerShell commands/functions")
             self.logger.info(f"Script size after tokenization: {post_token_size} bytes ({size_diff:+} bytes)")
         
         # 6. String division
         if is_verbose:
-            self.logger.info("STEP 6/7: Dividing strings into concatenated parts")
+            self.logger.info("STEP 6/6: Dividing strings into concatenated parts")
             self.logger.info("Breaking string literals into smaller pieces to avoid detection")
             pre_divide_size = len(processed_code)
             
@@ -661,56 +602,56 @@ class PowerShellObfuscator:
             post_divide_size = len(processed_code)
             size_diff = post_divide_size - pre_divide_size
             divided = self.stats.get('strings_obfuscated', 0)
-            self.logger.success(f"STEP 6/7 COMPLETE: Divided {divided} strings into concatenated parts")
+            self.logger.success(f"STEP 6/6 COMPLETE: Divided {divided} strings into concatenated parts")
             self.logger.info(f"Script size after string division: {post_divide_size} bytes ({size_diff:+} bytes)")
         
         # 7. Base64 encoding (only individual commands, not full script)
-        if is_verbose:
-            self.logger.info("STEP 7/7: Encoding individual commands with Base64")
-            self.logger.info("Using Base64 encoding to bypass content filtering")
-            pre_base64_size = len(processed_code)
+        #if is_verbose:
+        #    self.logger.info("STEP 7/7: Encoding individual commands with Base64")
+        #    self.logger.info("Using Base64 encoding to bypass content filtering")
+        #    pre_base64_size = len(processed_code)
             
         # Use encode_individual=True to encode individual commands rather than blocks or full script
-        base64_encoder = Base64Encoder(
-            encode_blocks=False,
-            encode_full=False,
-            encode_individual=True
-        )
-        processed_code = base64_encoder.transform(processed_code)
-        self._update_stats(base64_encoder.get_stats())
+        #base64_encoder = Base64Encoder(
+        #    encode_blocks=False,
+        #    encode_full=False,
+        #    encode_individual=True
+        #)
+        #processed_code = base64_encoder.transform(processed_code)
+        #self._update_stats(base64_encoder.get_stats())
         
         # Check if no commands were encoded and force encoding something as a fallback
-        if self.stats.get('commands_encoded', 0) == 0:
-            if is_verbose:
-                self.logger.info("No standard commands found for Base64 encoding, applying fallback encoding")
+        #if self.stats.get('commands_encoded', 0) == 0:
+        #    if is_verbose:
+        #        self.logger.info("No standard commands found for Base64 encoding, applying fallback encoding")
             
-            # Create a simple fallback that encodes a small part of the script
-            lines = processed_code.split('\n')
-            if len(lines) > 5:
-                # Find some content to encode (non-empty lines)
-                content_lines = [i for i, line in enumerate(lines) if line.strip() and not line.strip().startswith('#')]
-                if content_lines:
-                    # Select a random line to encode
-                    line_idx = random.choice(content_lines)
-                    line = lines[line_idx]
+        #    # Create a simple fallback that encodes a small part of the script
+        #    lines = processed_code.split('\n')
+        #    if len(lines) > 5:
+        #        # Find some content to encode (non-empty lines)
+        #        content_lines = [i for i, line in enumerate(lines) if line.strip() and not line.strip().startswith('#')]
+        #        if content_lines:
+        #            # Select a random line to encode
+        #            line_idx = random.choice(content_lines)
+        #            line = lines[line_idx]
                     
-                    # Only encode if the line isn't too complex
-                    if len(line) < 100 and not re.search(r'function|param\s*\(|\{|\}|\$\(|\$\{', line):
-                        # Wrap it as a simple Write-Output for Base64 encoding
-                        encoded_line = base64_encoder._encode_base64(f'Write-Output "{line.strip()}"')
-                        lines[line_idx] = encoded_line
-                        processed_code = '\n'.join(lines)
-                        self.stats["commands_encoded"] = 1
+        #        # Only encode if the line isn't too complex
+        #        if len(line) < 100 and not re.search(r'function|param\s*\(|\{|\}|\$\(|\$\{', line):
+        #            # Wrap it as a simple Write-Output for Base64 encoding
+        #            encoded_line = base64_encoder._encode_base64(f'Write-Output "{line.strip()}"')
+        #            lines[line_idx] = encoded_line
+        #            processed_code = '\n'.join(lines)
+        #            self.stats["commands_encoded"] = 1
                         
-                        if is_verbose:
-                            self.logger.info("Applied fallback Base64 encoding to ensure some content is encoded")
+        #        if is_verbose:
+        #            self.logger.info("Applied fallback Base64 encoding to ensure some content is encoded")
         
-        if is_verbose:
-            post_base64_size = len(processed_code)
-            size_diff = post_base64_size - pre_base64_size
-            encoded = self.stats.get('commands_encoded', 0)
-            self.logger.success(f"STEP 7/7 COMPLETE: Base64 encoded {encoded} individual commands")
-            self.logger.info(f"Script size after Base64 encoding: {post_base64_size} bytes ({size_diff:+} bytes)")
+        #if is_verbose:
+        #    post_base64_size = len(processed_code)
+        #    size_diff = post_base64_size - pre_base64_size
+        #    encoded = self.stats.get('commands_encoded', 0)
+        #    self.logger.success(f"STEP 7/7 COMPLETE: Base64 encoded {encoded} individual commands")
+        #    self.logger.info(f"Script size after Base64 encoding: {post_base64_size} bytes ({size_diff:+} bytes)")
             
             # Final summary
             final_size = len(processed_code)

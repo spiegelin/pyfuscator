@@ -33,11 +33,7 @@ class Logger:
     ESSENTIAL_MESSAGES = {
         "Reading input file:",
         "Writing obfuscated code to",
-        "Auto-detected Python",
-        "Auto-detected PowerShell",
-        "Could not determine script language",
-        "Using specified script language",
-        "PowerShell obfuscation is not yet implemented"
+        "Could not determine script language"
     }
 
     def __init__(self, verbose: bool = False):

@@ -4,7 +4,6 @@ Encryption methods for multi-language code obfuscation.
 import base64
 import random
 import zlib
-import json
 from pyfuscator.core.utils import random_name
 
 # --------------------------
@@ -392,4 +391,4 @@ def encryption_method_5(code: str, language: str = "python") -> str:
             "}"
         )
     else:
-        raise ValueError("Unsupported language")
+        raise ValueError("Unsupported language") 

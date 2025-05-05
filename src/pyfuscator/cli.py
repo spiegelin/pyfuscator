@@ -315,8 +315,6 @@ def python_command(
             rename_map = stats.get('rename_map', {})
             if rename_map:
                 _display_rename_map(rename_map, "python")
-            else:
-                logger.debug("No rename map found in stats")
 
         # Display statistics only in verbose mode (after rename map)
         if verbose:
@@ -344,23 +342,23 @@ def powershell_command(
     rename_identifiers: bool = typer.Option(
         False, "-i", "--identifier-rename", help="Rename variables and function names"
     ),
-    dotnet_methods: bool = typer.Option(
-        False, "-d", "--dotnet-methods", help="(Experimental) Use .NET methods for obfuscation"
-    ),
-    secure_strings: bool = typer.Option(
-        False, "-s", "--secure-strings", help="(Experimental) Use SecureString for string obfuscation"
-    ),
+    #dotnet_methods: bool = typer.Option(
+    #    False, "-d", "--dotnet-methods", help="(Experimental) Use .NET methods for obfuscation"
+    #),
+    #secure_strings: bool = typer.Option(
+    #    False, "-s", "--secure-strings", help="(Experimental) Use SecureString for string obfuscation"
+    #),
     string_divide: bool = typer.Option(
         False, "-sd", "--string-divide", help="Divide strings into concatenated parts"
     ),
     script_encrypt: int = typer.Option(
-        False, "-e", "--encrypt", help="Encrypt the entire script with SecureString"
+        False, "-e", "--encrypt", help="Encrypt the entire script with multiple layers of encryption"
     ),
-    base64: bool = typer.Option(
-        False, "-b", "--base64", help="Encode individual commands with Base64"
-    ),
+    #base64: bool = typer.Option(
+    #    False, "-b", "--base64", help="Encode individual commands with Base64"
+    #),
     base64_full: bool = typer.Option(
-        False, "--base64-full", help="Encode the entire script with Base64"
+        False, "--base64-full", help="Encode the entire script with Base64 (sometimes flagged by antiviruses)"
     ),
     lower_entropy: bool = typer.Option(
         False, "-l", "--lower-entropy", help="Apply entropy reduction techniques"
@@ -368,7 +366,7 @@ def powershell_command(
     all_obfuscations: bool = typer.Option(
         False, "-a", "--all", 
         help="Apply the following techniques in this order: comment removal, identifier renaming, "
-             "junk code insertion (200), lower entropy, tokenization, string division, Base64 encode"
+             "junk code insertion (200), lower entropy, tokenization, string division"#, Base64 encode"
     ),
     verbose: bool = typer.Option(False, "-v", "--verbose", help="Show detailed logs during obfuscation"),
     help: bool = typer.Option(
@@ -408,18 +406,16 @@ def powershell_command(
             logger.info("Command tokenization enabled")
         if rename_identifiers:
             logger.info("Identifier renaming enabled")
-        if dotnet_methods:
-            logger.info("Using .NET methods")
-        if secure_strings:
-            logger.info("SecureString obfuscation enabled")
+        #if dotnet_methods:
+        #    logger.info("Using .NET methods")
+        #if secure_strings:
+        #    logger.info("SecureString obfuscation enabled")
         if string_divide:
             logger.info("String division enabled")
-        if base64:
-            logger.info("Base64 command encoding enabled")
+        #if base64:
+        #    logger.info("Base64 command encoding enabled")
         if base64_full:
             logger.info("Full script Base64 encoding enabled")
-        if script_encrypt:
-            logger.info("Full script encryption enabled")
         if lower_entropy:
             logger.info("Lower entropy transformation enabled")
         if all_obfuscations:
@@ -449,10 +445,10 @@ def powershell_command(
             # 6. String division (-sd)
             string_divide=string_divide or all_obfuscations,
             # 7. Base64 encode (-b)
-            base64_commands=base64 or all_obfuscations,
+            #base64_commands=base64 or all_obfuscations,
             # Excluded from all_obfuscations:
-            secure_strings=secure_strings,
-            dotnet_methods=dotnet_methods,
+            #secure_strings=secure_strings,
+            #dotnet_methods=dotnet_methods,
             base64_full=base64_full,
             script_encrypt=script_encrypt,
             verbose=verbose
@@ -475,7 +471,7 @@ def powershell_command(
         # Summarize techniques used
         tech_applied = []
         if all_obfuscations:
-            tech_applied.append("standard obfuscation sequence (in order: comment removal, identifier renaming, junk code, lower entropy, tokenization, string division, base64)")
+            tech_applied.append("standard obfuscation sequence (in order: comment removal, identifier renaming, junk code, lower entropy, tokenization, string division)")#, base64)")
         else:
             if remove_comments:
                 tech_applied.append("comment removal")
@@ -485,16 +481,14 @@ def powershell_command(
                 tech_applied.append("command tokenization")
             if rename_identifiers:
                 tech_applied.append("identifier renaming")
-            if dotnet_methods:
-                tech_applied.append(".NET methods")
-            if secure_strings:
-                tech_applied.append("SecureString obfuscation")
+            #if dotnet_methods:
+            #    tech_applied.append(".NET methods")
+            #if secure_strings:
+            #    tech_applied.append("SecureString obfuscation")
             if string_divide:
                 tech_applied.append("string division")
-            if base64:
-                tech_applied.append("Base64 command encoding")
-            if script_encrypt:
-                tech_applied.append("script encryption")
+            #if base64:
+            #    tech_applied.append("Base64 command encoding")
             if lower_entropy:
                 tech_applied.append("lower entropy transformation")
 

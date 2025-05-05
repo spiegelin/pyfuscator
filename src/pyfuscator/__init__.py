@@ -7,6 +7,6 @@ from colorama import init as init_colorama
 init_colorama(autoreset=True)
 
 # Version info
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __author__ = "@spiegelin"
 __license__ = "MIT"

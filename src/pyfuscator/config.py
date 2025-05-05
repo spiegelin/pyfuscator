@@ -49,7 +49,6 @@ class ObfuscationConfig:
         "base64_full": False,
         "base64_commands": False,
         "script_encrypt": False,
-        "use_ads": False,
         "lower_entropy": False
     })
     

@@ -11,11 +11,10 @@ from pyfuscator.transformers.python import (
 # Import from PowerShell transformers
 from pyfuscator.transformers.powershell import (
     RenameIdentifiers as PSRenameIdentifiers,
-    ObfuscateStrings, EncodeCommands, CommandTokenizer,
+    ObfuscateStrings, CommandTokenizer,
     InsertJunkCode as PSInsertJunkCode, UseDotNetMethods,
     SecureStringTransformer,
-    RemoveComments, LowerEntropy, Base64Encoder,
-    PowerShellScriptEncryptor, PowerShellObfuscator
+    RemoveComments, LowerEntropy, Base64Encoder, PowerShellObfuscator
 )
 
 __all__ = [
@@ -32,7 +31,6 @@ __all__ = [
     # PowerShell transformers
     'PSRenameIdentifiers',
     'ObfuscateStrings',
-    'EncodeCommands',
     'CommandTokenizer',
     'PSInsertJunkCode',
     'UseDotNetMethods',
@@ -40,6 +38,5 @@ __all__ = [
     'RemoveComments',
     'LowerEntropy',
     'Base64Encoder',
-    'PowerShellScriptEncryptor',
     'PowerShellObfuscator',
 ]

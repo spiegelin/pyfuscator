@@ -2,10 +2,7 @@
 AST transformer for string encryption.
 """
 import ast
-from typing import Optional, Any
 import base64
-
-from pyfuscator.core.utils import encode_string
 
 class EncryptStrings(ast.NodeTransformer):
     """Transformer that encrypts string literals."""

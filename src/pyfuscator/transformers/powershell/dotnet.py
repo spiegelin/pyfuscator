@@ -3,7 +3,7 @@ PowerShell .NET method-based obfuscation transformer.
 """
 import re
 import random
-from typing import Match, List, Tuple, Dict
+from typing import Match, List, Dict
 
 from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger
@@ -107,7 +107,7 @@ class UseDotNetMethods:
                 chars.append(f"[char]{ord(c)}")
             return f"[String]::Concat({', '.join(chars)})"
         
-        elif strategy == 2:
+        if strategy == 2:
             # Use String::Format with substitution parameters
             parts = []
             format_args = []
@@ -130,7 +130,7 @@ class UseDotNetMethods:
             
             return f"[String]::Format('{format_string}', {', '.join(format_args)})"
         
-        elif strategy == 3:
+        if strategy == 3:
             # Split the string and use String::Join
             parts = self._split_string(string_content, random.randint(2, 4))
             quoted_parts = [f"'{part}'" for part in parts]
@@ -142,7 +142,7 @@ class UseDotNetMethods:
             array_elements = ",".join(quoted_parts)
             return f"[String]::Join({separator}, @({array_elements}))"
         
-        elif strategy == 4:
+        if strategy == 4:
             # Use a combination of string instance methods
             var_name = f"${random_name(6)}"
             operations = []
@@ -217,16 +217,16 @@ class UseDotNetMethods:
                 if len(unique_chars) == 1:
                     char = list(unique_chars)[0]
                     return f"[string]::new('{char}', {len(string_content)})"
-                else:
-                    # Choose a special character that's unlikely to be in the string
-                    pad_char = '*'
-                    if pad_char in string_content:
-                        pad_char = '#'
-                    
-                    # Pad and then remove
-                    padded = (pad_char * 5) + string_content + (pad_char * 5)
-                    return f"([string]::new('{pad_char}', 5) + '{string_content}' + [string]::new('{pad_char}', 5)).Trim('{pad_char}')"
-            
+                
+                # Choose a special character that's unlikely to be in the string
+                pad_char = '*'
+                if pad_char in string_content:
+                    pad_char = '#'
+                
+                # Pad and then remove
+                padded = (pad_char * 5) + string_content + (pad_char * 5)
+                return f"([string]::new('{pad_char}', 5) + '{string_content}' + [string]::new('{pad_char}', 5)).Trim('{pad_char}')"
+        
             else:  # approach == 3
                 # String manipulation with StringBuilder
                 return f"""(& {{

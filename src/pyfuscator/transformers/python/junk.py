@@ -2,10 +2,8 @@
 Junk code insertion transformer.
 """
 import ast
-import random
-from typing import List, Optional, Any
 
-from pyfuscator.core.utils import generate_random_blob_code, generate_random_statement
+from pyfuscator.core.utils import generate_random_blob_code
 from pyfuscator.log_utils import logger
 
 class InsertJunkCode(ast.NodeTransformer):
@@ -17,8 +15,12 @@ class InsertJunkCode(ast.NodeTransformer):
         self.pep8_compliant = pep8_compliant
         self.junk_at_end = junk_at_end
         self.verbose = verbose
+        self.total_statements_added = 0
 
     def visit_Module(self, node):
+        """
+        Visit the module and insert junk code at the beginning and end.
+        """
         total_statements_added = 0
         
         # Calculate how many statements to put at the beginning and end

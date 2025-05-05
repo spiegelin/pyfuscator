@@ -3,7 +3,7 @@ PowerShell junk code insertion transformer.
 """
 import random
 import string
-from typing import List, Optional, Dict
+from typing import Dict
 
 from pyfuscator.core.utils import random_name
 from pyfuscator.log_utils import logger
@@ -61,6 +61,7 @@ class InsertJunkCode:
             
         # TODO: Add junk in functions if junk_in_functions is True
         # This would require more sophisticated parsing to find function bodies
+        # Later
         
         logger.info(f"Inserted {self.statements_added} junk statements in PowerShell script")
         return transformed
@@ -136,7 +137,7 @@ class InsertJunkCode:
         value_type = random.choice(["string", "number", "boolean", "array", "null"])
         
         if value_type == "string":
-            value = f"'{random_name(8)}'"
+            value = f"'{random_name(7)}'"
         elif value_type == "number":
             value = str(random.randint(1, 1000))
         elif value_type == "boolean":
@@ -191,7 +192,7 @@ class InsertJunkCode:
     
     def _generate_function_declaration(self) -> str:
         """Generate a random function declaration."""
-        func_name = f"Get-{random_name(8)}"
+        func_name = f"Get-{random_name(7)}"
         param_name = f"${random_name(5)}"
         var_name = f"${random_name(5)}"
         
@@ -238,7 +239,7 @@ class InsertJunkCode:
         
         keys = [random_name(5) for _ in range(random.randint(2, 5))]
         values = [
-            f"'{random_name(8)}'", 
+            f"'{random_name(7)}'", 
             str(random.randint(1, 100)), 
             random.choice(["$true", "$false"]),
             f"@({random.randint(1, 10)}, {random.randint(1, 10)})"

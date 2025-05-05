@@ -176,3 +176,4 @@ cython_debug/
 # PyFuscator testing stuff
 tests/
 .DS_Store
+build.sh

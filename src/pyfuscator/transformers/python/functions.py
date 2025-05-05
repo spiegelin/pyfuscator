@@ -4,9 +4,6 @@ AST transformers for function obfuscation.
 import ast
 import random
 import string
-from typing import List, Optional, Union, Any
-
-from pyfuscator.core.utils import random_name
 
 class DynamicFunctionBody(ast.NodeTransformer):
     """Wrap function bodies with dynamic execution for obfuscation."""

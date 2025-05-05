@@ -6,9 +6,12 @@ import base64
 import random
 import string
 import re
-from typing import Optional, List, Dict, Any, Set, Callable, Union, Tuple
+import io
+import tokenize
 
-def random_name(length: int = 8) -> str:
+RANDOM_NUMBER = lambda: random.randint(1,10)
+
+def random_name(length: int = None) -> str:
     """
     Generate a random variable name that's a valid Python identifier.
     Ensures it's not a Python keyword and starts with a letter.
@@ -19,6 +22,9 @@ def random_name(length: int = 8) -> str:
     Returns:
         A random string suitable as a Python identifier
     """
+    if length is None:
+        length = RANDOM_NUMBER()
+
     # List of Python keywords to avoid
     python_keywords = {
         'False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await',
@@ -27,6 +33,36 @@ def random_name(length: int = 8) -> str:
         'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while',
         'with', 'yield'
     }
+
+    powershell_keywords = {
+        'begin', 'break', 'catch', 'class', 'continue', 'data', 'define', 'do',
+        'dynamicparam', 'else', 'elseif', 'end', 'exit', 'filter', 'finally',
+        'for', 'foreach', 'from', 'function', 'if', 'in', 'param', 'process',
+        'return', 'switch', 'throw', 'trap', 'try', 'until', 'using', 'var',
+        'while', 'workflow',
+
+        # Common cmdlets (optional to exclude if you're cautious)
+        'Get-Item', 'Set-Item', 'New-Item', 'Remove-Item', 'Get-Content',
+        'Set-Content', 'Write-Output', 'Write-Host', 'Write-Error',
+        'Start-Process', 'Get-Process', 'Stop-Process', 'Invoke-Expression',
+        'Invoke-Command', 'Get-Command', 'Get-Help'
+    }
+
+
+    csharp_keywords = {
+        'abstract', 'as', 'base', 'bool', 'break', 'byte', 'case', 'catch',
+        'char', 'checked', 'class', 'const', 'continue', 'decimal', 'default',
+        'delegate', 'do', 'double', 'else', 'enum', 'event', 'explicit', 'extern',
+        'false', 'finally', 'fixed', 'float', 'for', 'foreach', 'goto', 'if',
+        'implicit', 'in', 'int', 'interface', 'internal', 'is', 'lock', 'long',
+        'namespace', 'new', 'null', 'object', 'operator', 'out', 'override',
+        'params', 'private', 'protected', 'public', 'readonly', 'ref', 'return',
+        'sbyte', 'sealed', 'short', 'sizeof', 'stackalloc', 'static', 'string',
+        'struct', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'uint',
+        'ulong', 'unchecked', 'unsafe', 'ushort', 'using', 'virtual', 'void',
+        'volatile', 'while'
+    }
+
     
     # Ensure the first character is a letter
     first = random.choice(string.ascii_letters)
@@ -39,7 +75,7 @@ def random_name(length: int = 8) -> str:
         name = first
     
     # Check if it's a Python keyword and regenerate if it is
-    if name in python_keywords:
+    if name in python_keywords or name in powershell_keywords or name in csharp_keywords:
         return random_name(length)  # Recursive call to try again
     
     return name
@@ -109,7 +145,7 @@ def generate_random_statement() -> str:
     # Maximum number of attempts to generate valid code
     max_attempts = 3
     
-    for attempt in range(max_attempts):
+    for _ in range(max_attempts):
         try:
             if statement_type == "assignment":
                 var_name = random_name()
@@ -266,9 +302,6 @@ def remove_comments(source: str) -> str:
     Returns:
         Source code with comments and docstrings removed
     """
-    import io
-    import tokenize
-    
     result = []
     io_obj = io.StringIO(source)
     prev_toktype = tokenize.INDENT
